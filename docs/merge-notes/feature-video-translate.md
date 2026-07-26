@@ -45,6 +45,18 @@ Thêm vào cụm nút điều hướng (sau nút `/collect`):
 
 ## 3. Ghi chú mâu thuẫn plan / prompt
 
+### 3a. Plan B1 nói "Dịch lại từ đầu → gửi flush" — mâu thuẫn giao thức thật
+
+Theo `LandmarkWebSocketHandler` + `TranslationService`, `{"type":"flush"}` là lệnh
+**CHỐT CÂU** (drain gloss đang đệm → ghép câu qua LLM → gửi `sentence` ngược về,
+trễ vài giây), KHÔNG phải lệnh hủy; giao thức cũng không có lệnh reset và flush
+không xóa buffer frame (~31 frame dư vì WINDOW=32/STRIDE=8). Nếu làm đúng chữ plan
+thì sau khi bấm "⟲ Dịch lại từ đầu" (hoặc đổi file), câu của lượt cũ sẽ hiện lại
+và bị đọc to SAU khi kết quả đã xóa, và frame cũ trộn vào cửa sổ đầu lượt mới.
+→ Ưu tiên code hiện tại: trang `/video` reset bằng **đóng + mở lại WebSocket**
+(server tự dọn buffer frame lẫn gloss trong `afterConnectionClosed`). `flush` chỉ
+còn dùng đúng nghĩa chốt câu khi video phát hết (`onended`).
+
 - Prompt giao việc nhắc branch `feature/collect-campaign` và mục "B1→B6" — đây là
   phiên bản plan CŨ. Plan hiện tại (commit `4614742`) đã hủy ý tưởng chiến dịch
   thu mẫu và đổi nhiệm vụ AGENT B thành `feature/video-translate` (mục 5, B1→B5).

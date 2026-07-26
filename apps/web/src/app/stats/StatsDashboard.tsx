@@ -18,16 +18,19 @@ type Summary = {
 const TOP_GLOSSES = 10;
 const DAYS = 7;
 
-/** 7 ngày gần nhất (theo giờ máy người xem — trùng giờ VN của backend khi xem ở VN). */
+// Trục ngày phải tính theo ĐÚNG múi giờ backend gộp byDay (Asia/Ho_Chi_Minh,
+// xem AnalyticsController) — dùng giờ local máy xem thì entry "hôm nay VN"
+// không khớp cột nào và rơi khỏi biểu đồ khi máy xem không ở UTC+7.
+// Locale en-CA cho sẵn định dạng YYYY-MM-DD trùng với backend.
+const VN_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** 7 ngày gần nhất theo giờ VN (VN không có DST nên lùi đúng 24h mỗi bước). */
 function lastDays(): string[] {
   const days: string[] = [];
-  const now = new Date();
+  const now = Date.now();
   for (let i = DAYS - 1; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    days.push(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-    );
+    days.push(VN_DAY.format(new Date(now - i * MS_PER_DAY)));
   }
   return days;
 }

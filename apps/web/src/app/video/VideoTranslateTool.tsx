@@ -86,6 +86,25 @@ export default function VideoTranslateTool() {
       setWsConnected(false);
       return;
     }
+    openSocket();
+  }
+
+  /**
+   * Đặt lại phiên dịch phía server bằng cách đóng và mở lại WebSocket.
+   * Giao thức không có lệnh hủy: "flush" là CHỐT CÂU từ gloss đang đệm — nếu
+   * dùng flush để reset thì câu của lượt cũ về SAU khi đã xóa kết quả (LLM trễ
+   * vài giây) rồi hiện lại và bị đọc to. Đóng phiên thì server tự dọn sạch cả
+   * buffer frame lẫn gloss đang đệm (afterConnectionClosed).
+   */
+  function resetBackendSession() {
+    if (!wsRef.current) return;
+    const old = wsRef.current;
+    wsRef.current = null; // handler của socket cũ tự vô hiệu nhờ guard wsRef
+    old.close();
+    openSocket();
+  }
+
+  function openSocket() {
     frameBufferRef.current = []; // bỏ frame thừa của phiên trước
     const ws = new WebSocket(WS_URL);
     // Mọi handler kiểm tra "còn là socket hiện tại không" — tránh event của
@@ -133,6 +152,9 @@ export default function VideoTranslateTool() {
     if (!file) return;
     setFileName(file.name);
     setFileUrl(URL.createObjectURL(file)); // URL cũ được effect thu hồi
+    // Đổi file = phiên dịch mới: reset cả server, không thì gloss/frame còn đệm
+    // của video trước trộn vào câu đầu tiên của video mới
+    resetBackendSession();
     setGlosses([]);
     setSentences([]);
     setPlaying(false);
@@ -151,8 +173,10 @@ export default function VideoTranslateTool() {
   function restartTranslation() {
     const video = videoRef.current;
     if (!video || !fileUrl) return;
-    // flush để server bỏ gloss đang dở của lượt trước, rồi mới xóa kết quả
-    flushTranslation();
+    // Reset phiên server bằng đóng/mở lại WS thay vì gửi flush như plan mô tả:
+    // flush thật ra CHỐT câu từ gloss đang đệm nên câu của lượt cũ sẽ về sau
+    // khi đã xóa kết quả và hiện lại trong lượt mới (ghi chú trong merge-notes)
+    resetBackendSession();
     setGlosses([]);
     setSentences([]);
     frameBufferRef.current = [];
