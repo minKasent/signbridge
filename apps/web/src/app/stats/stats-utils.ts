@@ -43,9 +43,9 @@ export function formatCount(value: number): string {
   return Math.round(value).toLocaleString("vi-VN");
 }
 
-/** 0.8234 → "82,3%" (một chữ số thập phân theo yêu cầu bảng model_metrics). */
-export function formatPercent(value: number): string {
-  if (!Number.isFinite(value)) return "—";
+/** 0.8234 → "82,3%"; trống/không hợp lệ → "—" (bảng model_metrics cho phép bỏ trống). */
+export function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   return `${(value * 100).toLocaleString("vi-VN", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,

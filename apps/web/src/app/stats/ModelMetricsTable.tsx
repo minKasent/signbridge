@@ -92,7 +92,7 @@ export default function ModelMetricsTable({
                     {formatPercent(metric.top5Accuracy)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatCount(metric.numClasses)}
+                    {metric.numClasses === null ? "—" : formatCount(metric.numClasses)}
                   </TableCell>
                   <TableCell className="min-w-48 whitespace-normal text-muted-foreground">
                     {metric.note ?? "—"}

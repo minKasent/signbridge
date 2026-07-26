@@ -11,7 +11,8 @@ export const RANGE_OPTIONS: RangeDays[] = [7, 14, 30];
 
 export type LatencyStats = {
   p50: number;
-  p95: number;
+  /** null khi Postgres không tính được phân vị (mọi mẫu trong khoảng đều thiếu số đo). */
+  p95: number | null;
   samples: number;
 };
 
@@ -25,12 +26,13 @@ export type AnalyticsSummary = {
   latency: LatencyStats | null;
 };
 
+/** Ba trường cuối để trống được: pipeline huấn luyện có thể chỉ ghi accuracy. */
 export type ModelMetric = {
   id: number;
   version: string;
   accuracy: number;
-  top5Accuracy: number;
-  numClasses: number;
+  top5Accuracy: number | null;
+  numClasses: number | null;
   note: string | null;
   recordedAt: string;
 };
