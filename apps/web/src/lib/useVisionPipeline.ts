@@ -20,6 +20,9 @@ import { buildFrame, createLandmarkers, type Landmarkers } from "./landmarks";
  * Cách đúng: sau mỗi await kiểm tra disposed và tự giải phóng tài nguyên vừa tạo.
  */
 
+/** Nhịp trích đặc trưng — khớp fps_hint trong labels.json của model. */
+const TARGET_FPS = 25;
+
 interface Options {
   videoRef: RefObject<HTMLVideoElement | null>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -82,6 +85,7 @@ export function useVisionPipeline({ videoRef, canvasRef, onFrame, drawLandmarkDo
         setReady(true);
 
         let lastVideoTime = -1;
+        let lastEmit = 0;
         let frameCount = 0;
         let fpsWindowStart = performance.now();
 
@@ -92,6 +96,11 @@ export function useVisionPipeline({ videoRef, canvasRef, onFrame, drawLandmarkDo
           lastVideoTime = video.currentTime;
 
           const now = performance.now();
+          // Ghim nhịp trích đặc trưng ~25fps cho khớp video huấn luyện —
+          // màn hình 60/120Hz mà không ghim thì chuỗi frame "nhanh gấp đôi"
+          // so với phân bố model đã học (vẽ khung xương vẫn mượt theo rAF).
+          if (now - lastEmit < 1000 / TARGET_FPS) return;
+          lastEmit = now;
           const hands = landmarkers!.hand.detectForVideo(video, now);
           const pose = landmarkers!.pose.detectForVideo(video, now);
 

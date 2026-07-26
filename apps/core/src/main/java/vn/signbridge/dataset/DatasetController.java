@@ -66,7 +66,7 @@ class DatasetController {
 					"Mỗi frame phải đúng %d chiều".formatted(EXPECTED_DIMS));
 		}
 
-		String filePath = storage.store(gloss, request.frames());
+		String filePath = storage.store(gloss, request.signerName(), request.fps(), request.frames());
 		try {
 			return samples.save(SampleRecord.builder()
 					.gloss(gloss)

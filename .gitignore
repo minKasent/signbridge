@@ -6,6 +6,8 @@
 storage/clips/*
 !storage/clips/.gitkeep
 storage/dataset/
+# Model thật (tải từ Colab về, quá nặng cho git)
+apps/ml/model/
 training/data/
 *.onnx
 *.task

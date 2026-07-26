@@ -1,7 +1,9 @@
 # Serving (chạy local trên máy dev / máy demo)
 fastapi>=0.115
 uvicorn[standard]>=0.30
+numpy>=2.0
+onnxruntime>=1.28
 
-# Bật khi có model thật (tuần 4+):
-# onnxruntime>=1.20
-# numpy>=2.0
+# Huấn luyện dùng chung venv này khi chạy local (Colab tự có torch):
+# torch (bản CPU: pip install torch --index-url https://download.pytorch.org/whl/cpu)
+# onnxscript (cần cho torch.onnx.export)

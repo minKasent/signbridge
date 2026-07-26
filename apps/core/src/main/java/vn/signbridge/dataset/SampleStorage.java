@@ -34,15 +34,20 @@ class SampleStorage {
 		Files.createDirectories(this.datasetDir);
 	}
 
-	/** @param gloss đã được kiểm tra tồn tại trong từ điển và khớp [A-Z0-9_]+ */
-	String store(String gloss, List<double[]> frames) throws IOException {
+	/**
+	 * Ghi mẫu kèm metadata (signer để split signer-independent lúc huấn luyện).
+	 *
+	 * @param gloss đã được kiểm tra tồn tại trong từ điển và khớp [A-Z0-9_]+
+	 */
+	String store(String gloss, String signerName, double fps, List<double[]> frames) throws IOException {
 		Path glossDir = datasetDir.resolve(gloss);
 		Files.createDirectories(glossDir);
 		Path target = glossDir.resolve(UUID.randomUUID() + ".json.gz");
 		Path temp = Files.createTempFile(glossDir, ".tmp-", ".json.gz");
 		try {
 			try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(temp))) {
-				objectMapper.writeValue(out, frames);
+				objectMapper.writeValue(out, java.util.Map.of(
+						"gloss", gloss, "signer", signerName, "fps", fps, "frames", frames));
 			}
 			Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE);
 		}

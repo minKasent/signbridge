@@ -136,6 +136,13 @@ Video → MediaPipe → chuỗi keypoint (T × N điểm × 3)
 > từ từ điển khi mất mạng) → hiện chữ + đọc thành tiếng bằng SpeechSynthesis vi-VN.
 > Đã chạy thật với API key: `BAC_SI / XIN_CHAO / TOI / DAU / KHAM_BENH` → *"Xin chào bác sĩ, tôi bị đau nên cần khám bệnh."*
 >
+> ✅ **Tuần 4-5 (bộ huấn luyện) chuẩn bị xong trước**: `training/model/` (dataset loader với
+> augment + lớp NO_SIGN tổng hợp, SignTransformer, train.py export ONNX + labels.json),
+> notebook exp01 (trích landmark) + exp02 (train trên Colab GPU). **Đã smoke-test toàn trình
+> trên dữ liệu giả ngay tại máy**: train → ONNX → nạp vào apps/ml → frame tay nghỉ ra
+> NO_SIGN 96.6% — nghĩa là khi có landmark thật chỉ việc chạy exp02, không dò bug trên giờ GPU.
+> apps/ml giờ có 2 chế độ: ONNX thật (khi có `apps/ml/model/`) / stub (mặc định).
+>
 > **Chất lượng:** 9/9 test Java (Modulith verify + Testcontainers + unit ghép câu), 17/17 test E2E
 > hạ tầng, 6/6 test E2E ghép câu, ESLint sạch, web build sạch.
 > **18 lỗi thật đã bắt & sửa** (3 qua test E2E + 15 qua review đa tác nhân có xác minh đối kháng):
