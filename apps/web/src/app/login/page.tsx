@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LoginForm from "./LoginForm";
 
 export const metadata: Metadata = {
-  title: "Đăng nhập | SignBridge",
+  title: "Đăng nhập",
 };
 
 export default function LoginPage() {

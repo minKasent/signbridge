@@ -3,6 +3,26 @@ const BASE = "http://localhost:8080";
 const ADMIN = { email: "admin@signbridge.vn", password: "signbridge-admin-dev" };
 let passed = 0, failed = 0;
 
+// Ký hiệu do test tạo ra PHẢI được xóa ở cuối: trước đây mỗi lần chạy để lại một
+// dòng "ký hiệu test" trong DB dùng chung, tích lũy 17 dòng rác lọt cả vào /dictionary
+// và trang demo (5 dòng còn mang clip .webm giả 2KB).
+const createdSignIds = [];
+let adminToken = null;
+
+/** Dọn rác kể cả khi test ném lỗi giữa chừng — nếu không, lần chạy sau lại cộng thêm. */
+async function cleanupCreatedSigns() {
+  if (!adminToken || createdSignIds.length === 0) return;
+  let removed = 0;
+  for (const id of createdSignIds) {
+    const res = await fetch(`${BASE}/api/signs/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    if (res.ok) removed++;
+  }
+  console.log(`\nDọn dẹp: xóa ${removed}/${createdSignIds.length} ký hiệu test`);
+}
+
 function check(name, cond, extra = "") {
   if (cond) { passed++; console.log(`  ✅ ${name}`); }
   else { failed++; console.log(`  ❌ ${name} ${extra}`); }
@@ -47,6 +67,7 @@ async function main() {
 
   res = await post("/api/auth/login", ADMIN);
   const admin = await res.json();
+  adminToken = admin.token;
   check("admin bootstrap đăng nhập được", res.status === 200 && admin.role === "ADMIN", `(got ${res.status}/${admin.role})`);
 
   res = await post("/api/auth/login", { email: ADMIN.email, password: "sai" });
@@ -63,6 +84,7 @@ async function main() {
 
   res = await post("/api/signs", sign, admin.token);
   check("ghi từ điển bằng token ADMIN → 201", res.status === 201, `(got ${res.status})`);
+  if (res.ok) createdSignIds.push((await res.json()).id);
 
   // --- 3. Dataset ---
   console.log("3. Dataset");
@@ -95,6 +117,7 @@ async function main() {
   const signForClip = { gloss: `TEST_CLIP_${Date.now() % 100000}`, meaningVi: "test clip", category: "DAILY" };
   res = await post("/api/signs", signForClip, admin.token);
   const createdSign = await res.json();
+  createdSignIds.push(createdSign.id);
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(2048)], { type: "video/webm" }), "test.webm");
   res = await fetch(`${BASE}/api/signs/${createdSign.id}/clip`, {
@@ -131,8 +154,13 @@ async function main() {
   const badDims = await wsProbe((ws) => ws.send(JSON.stringify({ type: "frames", frames: randomFrames(5, 3) })));
   check("frame sai chiều → đóng phiên 1008", badDims.closeCode === 1008, `(got ${badDims.closeCode})`);
 
+  await cleanupCreatedSigns();
   console.log(`\nKẾT QUẢ: ${passed} pass, ${failed} fail`);
   process.exit(failed === 0 ? 0 : 1);
 }
 
-main().catch((e) => { console.error("Lỗi test:", e); process.exit(1); });
+main().catch(async (e) => {
+  console.error("Lỗi test:", e);
+  await cleanupCreatedSigns().catch(() => {});
+  process.exit(1);
+});

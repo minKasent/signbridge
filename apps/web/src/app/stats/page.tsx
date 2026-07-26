@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import StatsDashboard from "./StatsDashboard";
 
 export const metadata: Metadata = {
-  title: "Thống kê | SignBridge",
+  title: "Thống kê",
 };
 
 export default function StatsPage() {
