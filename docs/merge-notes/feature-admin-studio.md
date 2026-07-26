@@ -6,7 +6,29 @@ Dành cho AGENT C khi merge branch này vào main.
 
 # PHẦN II — SPRINT 2 (giao diện, §5 của `Plan-sprint2-ui.md`)
 
-## II.1. Thay đổi cần áp vào file chung: **KHÔNG CÓ**
+## II.0. MỘT thay đổi file chung C cần áp: nút đóng Dialog đang đọc là "Close"
+
+`src/components/ui/dialog.tsx` (Phase 0, ngoài lãnh thổ A) đặt nhãn tiếng Anh cho
+nút đóng — nó xuất hiện ở MỌI hộp thoại của cả ba branch, và vi phạm quy ước
+"tiếng Việt 100%" (§3.4). Diff mong muốn:
+
+```diff
+             <Button
+               variant="ghost"
+               className="absolute top-2 right-2"
+               size="icon-sm"
+             >
+               <XIcon
+               />
+-              <span className="sr-only">Close</span>
++              <span className="sr-only">Đóng</span>
+             </Button>
+```
+
+Cùng file, `DialogFooter` có `showCloseButton` render `<Button variant="outline">Close</Button>`
+— A không dùng prop đó, nhưng nếu B/C dùng thì cũng nên đổi thành "Đóng".
+
+## II.1. Ngoài mục II.0, thay đổi file chung: **KHÔNG CÓ**
 
 Không sửa `package.json`, `globals.css`, `layout.tsx`, `nav.ts`, `components/ui/**`,
 `SecurityConfig`, `application.yml`, `pom.xml`. `/record` và `/admin` đã có sẵn trong
@@ -47,6 +69,10 @@ Giữ, và dùng CHUNG component quay với hộp thoại của `/admin`:
   hàng loạt (chọn → quay → lưu → chọn từ tiếp, camera vẫn sáng).
 - Chi phí trùng lặp mã đã về 0: lõi quay là `ClipRecorder` dùng chung, nên sửa lỗi
   vòng đời camera một lần là cả hai nơi được sửa.
+- Camera: giữ sáng liên tục khi quay LẠI cùng một từ (upload xong tự về trạng thái
+  sẵn sàng). Khi đổi sang từ khác, `<ClipRecorder key={selected.id}>` mount lại nên
+  camera tắt–bật một nhịp: cố ý, vì nếu giữ nguyên component thì khung xem lại của
+  từ trước còn nằm đó dưới tiêu đề của từ mới. Quyền đã cấp nên không hỏi lại.
 - `/record` KHÔNG còn form đăng nhập nội tuyến nữa (đúng A3): chưa đăng nhập thì
   chuyển sang `/login?next=/record?sign=…` và quay lại đúng từ đang định quay.
 
@@ -88,6 +114,41 @@ Giữ, và dùng CHUNG component quay với hộp thoại của `/admin`:
   (`bg-card`, `text-muted-foreground`, `bg-primary`, `bg-destructive`…).
 - Backend sprint 2: **không sửa gì** trong `apps/core` — 17 test Java vẫn chạy nguyên
   trạng (A5 chỉ yêu cầu giữ xanh).
+
+## II.6. Đã sửa sau vòng review đối kháng (5 lăng kính: trợ năng, React, plan, UX, dữ liệu)
+
+Ghi lại vì đây là các lỗi C nên biết khi thử tay, và vài cái là bài học chung cho B/C:
+
+1. **Lỗi camera từng là bế tắc tuyệt đối với người khiếm thị** — overlay lỗi là `<div>`
+   trần, còn vùng `aria-live` thì kẹt ở "Đang chuẩn bị camera" (biểu thức chỉ phụ thuộc
+   `phase`, mà `phase` không đổi khi `getUserMedia` thất bại). Nay overlay có
+   `role="alert"`, live region nhường lời cho alert, có nút **Thử lại**, và thông điệp
+   riêng cho từng nguyên nhân (từ chối quyền / không có webcam / webcam bị app khác giữ).
+2. **`?next=/\evil.com` vượt được bộ lọc cũ** (chỉ chặn `//`). Chuẩn WHATWG coi `\`
+   ngang `/` trong URL http(s) nên đó là chuyển hướng ra ngoài miền. Đã chặn
+   `/^\/[\\/]/`. B/C nếu có chỗ nào nhận đường dẫn từ query thì kiểm lại chỗ đó.
+3. **Upload xong sau khi hộp thoại đã đóng thì UI không cập nhật** — clip đã nằm trên
+   máy chủ nhưng bảng vẫn hiện "Chưa có clip". Nay vẫn gọi `onUploaded` dù component
+   đã unmount (chỉ bỏ qua các `setState` nội bộ).
+4. **Khung xem lại bị ẩn bằng class vẫn giải mã và phát vòng lặp ngầm** sau khi lưu /
+   bấm Quay lại. Nay `pause()` + tháo `src` + thu hồi blob URL.
+5. **Stepper `/record` có hai phần tử `aria-current="step"`** sau khi bấm "Đổi từ khác"
+   (dùng `phase` cũ của recorder đã unmount).
+6. `AlertDialog` xóa nhá cảnh báo sai lúc đang đóng (`deleting?.clipUrl !== null` cho
+   `true` cả khi `deleting === null`).
+7. Mục trong combobox đổi từ `onMouseDown` sang `onClick` — điều khiển bằng giọng nói
+   và trình đọc màn hình phát sinh `click`, không phát sinh `mousedown`.
+8. Con trỏ bàn phím trong combobox thêm viền `ring` (chỉ đổi nền `bg-muted` trên
+   `bg-card` là ~1.7:1, không đủ thấy).
+9. Khung xương "đang tải" của `/admin` thêm chữ `sr-only` — `aria-busy` trên vùng
+   không có chữ thì trình đọc màn hình im lặng.
+10. Nút hiện/ẩn mật khẩu bỏ `aria-pressed` (vừa đổi nhãn vừa có `aria-pressed` làm
+    trình đọc màn hình đọc ra nghĩa ngược).
+11. `aria-invalid` chỉ đặt khi sai thông tin đăng nhập, không đặt khi tài khoản thiếu
+    quyền; lỗi được liên kết với ô nhập bằng `aria-describedby`.
+12. `describeError()` trong `sign.ts`: lỗi mạng không còn lộ chuỗi tiếng Anh
+    "Failed to fetch" ra giao diện.
+13. `/dictionary` phân biệt "từ điển rỗng thật" với "lọc không ra kết quả".
 
 ---
 
