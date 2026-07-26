@@ -1,0 +1,25 @@
+# Hạ tầng dev cho SignBridge.
+# Spring core tự start file này khi chạy (spring-boot-docker-compose).
+#
+# Lưu ý: KHÔNG dùng MinIO — repo MinIO community đã bị archive (04/2026).
+# Clip ký hiệu lưu ở ./storage/clips (filesystem), phương án cloud: Cloudflare R2.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: signbridge-postgres
+    environment:
+      POSTGRES_DB: signbridge
+      POSTGRES_USER: signbridge
+      POSTGRES_PASSWORD: signbridge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signbridge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core:
+    name: Spring core (build + test + kiểm chứng module)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/core
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: apps/core/pom.xml
+      - run: chmod +x mvnw
+      - run: ./mvnw -B verify
+
+  web:
+    name: Next.js (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  ml:
+    name: ML service (cài đặt + kiểm tra import)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ml
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/ml/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python -c "from app.main import app; print('OK:', app.title)"

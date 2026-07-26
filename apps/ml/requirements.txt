@@ -1,0 +1,7 @@
+# Serving (chạy local trên máy dev / máy demo)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+
+# Bật khi có model thật (tuần 4+):
+# onnxruntime>=1.20
+# numpy>=2.0

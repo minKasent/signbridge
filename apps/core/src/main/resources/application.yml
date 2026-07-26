@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: signbridge-core
+
+  # Tự động bật hạ tầng (Postgres + MinIO) từ docker-compose gốc khi chạy dev
+  docker:
+    compose:
+      file: ../../docker-compose.yml
+      lifecycle-management: start_only
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/signbridge
+    username: signbridge
+    password: signbridge
+
+  jpa:
+    hibernate:
+      ddl-auto: update # dev only — sẽ chuyển sang Flyway migration ở giai đoạn sau
+    open-in-view: false
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,modulith
+
+signbridge:
+  ml:
+    base-url: http://localhost:8000

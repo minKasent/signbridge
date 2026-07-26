@@ -1,0 +1,26 @@
+# Env & secrets
+.env
+*.local
+
+# Dữ liệu lớn (clip, model, dataset) — không đưa lên git
+storage/clips/*
+!storage/clips/.gitkeep
+training/data/
+*.onnx
+*.task
+# Ngoại lệ: model MediaPipe vendor trong repo (pin 0.10.35, tránh CDN)
+!apps/web/public/models/*.task
+
+# Build outputs
+node_modules/
+.next/
+target/
+.venv/
+__pycache__/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+.DS_Store
