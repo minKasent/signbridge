@@ -1,13 +1,21 @@
 # Email xin quyền truy cập dataset Multi-VSL đầy đủ
 
-> Trạng thái: chờ đội điều tra tìm địa chỉ email tác giả (điền vào chỗ `[...]`).
+> ✅ Đã tìm được email tác giả (trích từ trang 1 bài báo WACV 2025).
 > Gửi bằng **email trường (.edu.vn)** nếu có — tăng độ tin cậy học thuật đáng kể.
-> Gửi cả bản tiếng Anh (chính) và tiếng Việt (lịch sự, tác giả là người Việt).
+> Toàn bộ nhóm tác giả ở **ĐH Bách Khoa Hà Nội (HUST)** — người Việt, nên đặt bản
+> tiếng Việt lên TRÊN, bản tiếng Anh phía dưới.
+>
+> ⚠️ Lưu ý thực tế: issue trên GitHub xin dataset đã bị bỏ ngỏ 14 tháng (5 người hỏi,
+> không ai được trả lời) — vì vậy: (1) email trực tiếp là kênh duy nhất còn lại,
+> (2) chỉ xin **subset 200 gloss view chính diện (~5.900 video)** thay vì cả 84K —
+> lời đề nghị nhỏ dễ được chấp nhận hơn, (3) sau khi gửi email, comment thêm một dòng
+> vào GitHub issue #1 của repo nhắc là đã email — tạo dấu vết công khai.
 
 ---
 
-**To:** [email tác giả liên hệ]
-**Subject:** Request for full Multi-VSL dataset access for undergraduate thesis (Vietnamese Sign Language recognition)
+**To:** lenp@soict.hust.edu.vn *(PGS.TS. Nguyễn Phi Lê — tác giả liên hệ, Giám đốc viện AI4LIFE, SoICT-HUST)*
+**CC:** son.dn225997@sis.hust.edu.vn *(Đinh Nguyễn Sơn — tác giả thứ nhất, chủ repo GitHub)*, huy.hoangquang@hust.edu.vn, ai4life@hust.edu.vn
+**Subject:** Xin quyền truy cập dataset Multi-VSL (subset 200 gloss) cho đồ án tốt nghiệp / Request for Multi-VSL 200-gloss subset access (undergraduate thesis)
 
 Dear Multi-VSL authors,
 
@@ -21,9 +29,9 @@ Dataset and Comprehensive Evaluation".
 I found the public Google Drive folder linked from your GitHub repository
 (Etdihatthoc/Multi-VSL_WACV_2025), but it appears to contain a demo sample
 (~1% of the videos referenced in the label_1_200 CSV splits). Could you please let me
-know how to obtain the full dataset (or at least the center-view subset for labels
-1–200, ~5,900 videos)? I would of course cite the paper, use the data for academic,
-non-commercial purposes only, and follow any terms you require.
+know how to obtain the **center-view subset for labels 1–200 (~5,900 videos per the
+train/val/test_1_200_center_ord1.csv splits)**? I would of course cite the paper, use
+the data for academic, non-commercial purposes only, and follow any terms you require.
 
 Two small additional questions, if you don't mind:
 1. Is there a mapping from the numeric labels (0–198) to the Vietnamese gloss words?
