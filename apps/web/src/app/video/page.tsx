@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import VideoTranslateTool from "./VideoTranslateTool";
+import VideoTranslateLoader from "./VideoTranslateLoader";
 
 export const metadata: Metadata = {
   title: "Dịch từ video",
 };
 
 export default function VideoPage() {
-  return <VideoTranslateTool />;
+  return <VideoTranslateLoader />;
 }
