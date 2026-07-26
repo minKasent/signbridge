@@ -174,11 +174,23 @@ buổi quay với 5-7 người), và làm module `analytics` lưu số liệu th
 - `DELETE /api/dataset/samples/{id}` (ADMIN) → xóa DB + file (`SampleStorage.delete` ĐÃ CÓ); 404 nếu không có.
 
 ### B2. Web `/collect` nâng cấp (giữ nguyên pipeline quay `useVisionPipeline` + logic upload hiện có)
+- **QUAN TRỌNG NHẤT — panel "clip mẫu để bắt chước"**: người quay KHÔNG biết ngôn ngữ ký
+  hiệu, nên khi chọn từ phải hiện **clip mẫu của từ điển quốc gia** (lấy `clipUrl` của sign,
+  đã có sẵn ~3.300 clip) ngay CẠNH khung webcam: autoplay + loop + muted, nút
+  "chậm 0.5x" (`playbackRate`). Quy trình trên UI ghi rõ: *"1. Xem mẫu vài lần →
+  2. Tập theo → 3. Bấm quay"*. Từ không có clip mẫu → không cho quay, hiện chú thích.
 - Panel trái thêm: bảng mục tiêu chiến dịch — mỗi từ một thanh tiến độ
   `min(count của signer hiện tại / targetPerSigner, 100%)`, tô xanh khi đủ.
 - Nút "▶ Quay từ tiếp theo còn thiếu" tự chọn từ chưa đủ mẫu của người ký hiện tại.
 - Sau mỗi lần upload thành công → refresh campaign. Không có chiến dịch (targets rỗng)
-  → hiện đúng giao diện cũ (chọn từ tự do).
+  → hiện đúng giao diện cũ (chọn từ tự do, vẫn có panel clip mẫu).
+- `PUT /api/dataset/campaign` thêm ràng buộc: chỉ nhận gloss **có clip** (`clipUrl != null`)
+  — mục tiêu không có mẫu để bắt chước là mục tiêu vô nghĩa. (Check qua `SignCatalog` —
+  cần thêm method `clipUrlOf(gloss)` vào interface này: được phép, cùng module dictionary
+  sở hữu nó? KHÔNG — `SignCatalog` thuộc lãnh thổ AGENT A? Cũng không: file đó thuộc module
+  dictionary nhưng là API xuyên module. QUYẾT ĐỊNH: AGENT B được thêm MỘT method
+  `Optional<String> clipUrlOf(String gloss)` vào `SignCatalog` + `SignCatalogImpl` —
+  đây là ngoại lệ lãnh thổ duy nhất, ghi vào merge-notes để AGENT C soát khi merge.)
 
 ### B3. Backend module `analytics` — lưu số liệu thật
 - Entity `GlossUsage`: `id, sessionId, gloss, confidence, at`. Bảng `gloss_usages`.
