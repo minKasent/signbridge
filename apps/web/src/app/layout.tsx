@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro, Geist_Mono } from "next/font/google";
+import { MotionProvider } from "@/components/motion-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/app-shell";
@@ -48,9 +49,11 @@ export default function RootLayout({
     // class này thì app dùng token sáng trong khi giao diện được thiết kế cho nền tối.
     <html lang="vi" className={`dark ${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
-        <TooltipProvider delayDuration={200}>
-          <AppShell>{children}</AppShell>
-        </TooltipProvider>
+        <MotionProvider>
+          <TooltipProvider delayDuration={200}>
+            <AppShell>{children}</AppShell>
+          </TooltipProvider>
+        </MotionProvider>
         <Toaster position="top-right" richColors closeButton />
       </body>
     </html>

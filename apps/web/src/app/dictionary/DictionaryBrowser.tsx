@@ -144,6 +144,22 @@ export default function DictionaryBrowser() {
         </Button>
       </div>
 
+      {/* Vùng thông báo LUÔN nằm trong DOM. Trước đây `aria-live` chỉ gắn ở dòng đếm
+          kết quả — mà dòng đó bị gỡ khỏi cây khi rơi vào trạng thái rỗng, nên đúng lúc
+          cần báo "không tìm thấy" thì trình đọc màn hình lại im. Live region bị unmount
+          rồi mount lại thì không phát được gì. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {loading
+          ? "Đang tải từ điển"
+          : failed
+            ? "Không tải được từ điển"
+            : filtered.length === 0
+              ? query !== ""
+                ? `Không tìm thấy ký hiệu nào khớp “${query}”`
+                : "Không có ký hiệu nào khớp bộ lọc"
+              : `${filtered.length.toLocaleString("vi")} kết quả`}
+      </p>
+
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 12 }, (_, i) => (
@@ -211,7 +227,9 @@ export default function DictionaryBrowser() {
         </Card>
       ) : (
         <>
-          <p aria-live="polite" className="mb-3 text-sm text-muted-foreground">
+          {/* Không đặt aria-live ở đây nữa: vùng thông báo dùng chung phía trên đã lo,
+              để cả hai thì trình đọc màn hình đọc trùng hai lần. */}
+          <p className="mb-3 text-sm text-muted-foreground">
             {filtered.length.toLocaleString("vi")} kết quả — đang xem{" "}
             {shown.length.toLocaleString("vi")}
           </p>

@@ -139,9 +139,13 @@ function SortableHead({
         size="sm"
         className="h-10 w-full justify-start rounded-none px-3 font-medium"
         onClick={() => onSort(column)}
-        aria-label={`Sắp xếp theo ${SORT_LABELS[column]}`}
       >
+        {/* KHÔNG dùng aria-label ở đây: nó THAY THẾ hẳn tên nhìn thấy, nên người điều
+            khiển bằng giọng nói đọc thấy cột "Nghĩa tiếng Việt" mà ra lệnh "bấm Nghĩa
+            tiếng Việt" thì không khớp control nào (WCAG 2.5.3 Label in Name). Thêm ngữ
+            cảnh bằng chữ ẩn ĐẶT SAU nội dung để tên trợ năng vẫn bắt đầu bằng nhãn thật. */}
         {children}
+        <span className="sr-only">, sắp xếp theo {SORT_LABELS[column]}</span>
         <ArrowUpNarrowWide
           className={active ? "text-primary" : "text-muted-foreground/40"}
           aria-hidden

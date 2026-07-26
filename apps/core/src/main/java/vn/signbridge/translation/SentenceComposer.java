@@ -11,8 +11,14 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+// Spring Boot 4 dùng Jackson 3: package là `tools.jackson.*`, KHÔNG phải
+// `com.fasterxml.jackson.*` như Jackson 2.
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +43,9 @@ import vn.signbridge.dictionary.SignCatalog;
 class SentenceComposer {
 
 	private static final int CACHE_SIZE = 200;
+
+	/** Sinh bằng tools/seed_sentence_cache.py từ kết quả bộ đánh giá — xem napCacheMoi(). */
+	private static final String SEED_FILE = "sentence-cache-seed.json";
 
 	private static final String SYSTEM_PROMPT = """
 			Bạn chuyển chuỗi gloss ngôn ngữ ký hiệu tiếng Việt (VSL) thành MỘT câu tiếng Việt tự nhiên.
@@ -83,6 +92,42 @@ class SentenceComposer {
 		this.gemini = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
 		if (apiKey.isBlank()) {
 			log.warn("Chưa có GEMINI_API_KEY — sẽ ghép câu bằng nghĩa trong từ điển");
+		}
+		napCacheMoi();
+	}
+
+	/**
+	 * Nạp sẵn các cặp chuỗi-gloss → câu đã sinh từ trước vào cache.
+	 *
+	 * Gói LLM miễn phí chỉ cho 20 lượt/NGÀY cho mỗi mô hình, nên nếu để demo tự gọi thì
+	 * chạy thử vài lượt trước buổi bảo vệ là cạn hạn mức, và giữa buổi trình diễn khâu
+	 * ghép câu sẽ tụt xuống lớp dự phòng. Mồi sẵn cache khử luôn cả rủi ro đó lẫn ~2,9
+	 * giây chờ mạng mỗi câu.
+	 *
+	 * Câu mồi là đầu ra THẬT mà mô hình đã sinh, được ghi lại trong bộ đánh giá
+	 * (docs/report/data/sentence-eval.json) rồi kết xuất bằng tools/seed_sentence_cache.py
+	 * — không phải câu viết tay. Thiếu tệp thì bỏ qua, hệ thống chạy y như cũ.
+	 */
+	private void napCacheMoi() {
+		var resource = new ClassPathResource(SEED_FILE);
+		if (!resource.exists()) {
+			log.info("Không có {} — cache ghép câu bắt đầu rỗng", SEED_FILE);
+			return;
+		}
+		try (var in = resource.getInputStream()) {
+			Map<String, String> seed = new ObjectMapper().readValue(in, new TypeReference<>() {
+			});
+			seed.forEach((glossLine, text) -> {
+				if (glossLine != null && text != null && !text.isBlank()) {
+					cache.put(glossLine, text);
+				}
+			});
+			log.info("Đã mồi {} câu vào cache ghép câu từ {}", seed.size(), SEED_FILE);
+		}
+		catch (Exception e) {
+			// Tệp mồi hỏng KHÔNG được làm chết ứng dụng — nó chỉ là tối ưu, không phải
+			// dữ liệu bắt buộc.
+			log.warn("Không đọc được {}: {}", SEED_FILE, e.getMessage());
 		}
 	}
 

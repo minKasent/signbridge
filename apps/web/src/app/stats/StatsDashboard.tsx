@@ -47,7 +47,13 @@ const StatsCharts = dynamic(() => import("./StatsCharts"), {
 
 /** Lỗi mạng/HTTP → câu tiếng Việt nói rõ phải kiểm tra gì. */
 function describeError(error: unknown): string {
-  const detail = error instanceof Error ? error.message : String(error);
+  // KHÔNG ghép thẳng `error.message` vào đầu câu: lỗi mạng của trình duyệt là chuỗi
+  // tiếng Anh ("Failed to fetch", "NetworkError when attempting to fetch resource"),
+  // nên đúng lúc backend chết thì màn hình chiếu hiện tiếng Anh giữa một đồ án tiếng Việt.
+  if (error instanceof TypeError) {
+    return "Không kết nối được máy chủ. Kiểm tra dịch vụ core đang chạy ở cổng 8080 rồi bấm Thử lại.";
+  }
+  const detail = error instanceof Error && error.message !== "" ? error.message : "Lỗi không xác định";
   return `${detail}. Kiểm tra dịch vụ core đang chạy ở cổng 8080 rồi bấm Thử lại.`;
 }
 

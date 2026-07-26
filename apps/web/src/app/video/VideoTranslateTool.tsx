@@ -25,7 +25,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { API_BASE } from "@/lib/landmarks";
-import { speakVietnamese, warmUpVoices } from "@/lib/speech";
+import { speakVietnameseNeural, warmUpTts } from "@/lib/neural-tts";
 import { cn } from "@/lib/utils";
 import { useVideoFilePipeline } from "./useVideoFilePipeline";
 
@@ -122,10 +122,10 @@ export default function VideoTranslateTool() {
     autoSpeakRef.current = autoSpeak;
   }, [autoSpeak]);
 
-  useEffect(() => warmUpVoices(), []);
+  useEffect(() => warmUpTts(), []);
 
   const handleSentence = useCallback((sentence: SentenceItem) => {
-    if (autoSpeakRef.current) speakVietnamese(sentence.text);
+    if (autoSpeakRef.current) void speakVietnameseNeural(sentence.text);
   }, []);
 
   // Mỗi gloss gắn mốc thời gian trong clip để vẽ vạch trên thanh tiến trình.
@@ -534,7 +534,7 @@ export default function VideoTranslateTool() {
             autoSpeak={autoSpeak}
             onAutoSpeakChange={setAutoSpeak}
             onSpeak={() => {
-              if (latest) speakVietnamese(latest.text);
+              if (latest) void speakVietnameseNeural(latest.text);
             }}
             idPrefix="video"
           />

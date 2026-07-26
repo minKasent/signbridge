@@ -24,11 +24,18 @@ import { Label } from "@/components/ui/label";
  * Chặn cả `/\evil.com`: chuẩn WHATWG coi dấu gạch chéo ngược trong URL http(s)
  * ngang với gạch chéo thường, nên `/\evil.com` bị hiểu là `//evil.com` (tương
  * đối theo giao thức) và điều hướng ra ngoài miền.
+ *
+ * PHẢI xoá tab / xuống dòng / carriage return TRƯỚC khi kiểm: bộ phân tích URL của
+ * trình duyệt tự loại bỏ ba ký tự đó, nên `?next=/%09/evil.com` tới tay ta là
+ * `"/\t/evil.com"` (ký tự thứ hai không phải `/` hay `\` nên lọt lưới), rồi khi điều
+ * hướng lại rút gọn thành `//evil.com` — vẫn thoát ra miền ngoài.
  */
 function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith("/")) return "/admin";
-  if (/^\/[\\/]/.test(raw)) return "/admin";
-  return raw;
+  if (!raw) return "/admin";
+  const clean = raw.replace(/[\t\r\n]/g, "");
+  if (!clean.startsWith("/")) return "/admin";
+  if (/^\/[\\/]/.test(clean)) return "/admin";
+  return clean;
 }
 
 /** `login()` đã trả thông điệp tiếng Việt cho 401; các mã khác thì nói chung chung. */

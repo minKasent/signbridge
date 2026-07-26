@@ -58,7 +58,10 @@ export function ErrorState({
       )}
     >
       <div className="space-y-1">
-        <p className="font-medium text-destructive">{title}</p>
+        {/* Tiêu đề dùng màu chữ thường, KHÔNG dùng text-destructive: đỏ trên nền thẻ
+            (`bg-card`) chỉ đạt ~4,3:1, dưới chuẩn AA 4,5:1 — mà đây lại là dòng nói lý
+            do hỏng. Icon và viền đỏ đã đủ báo hiệu đây là lỗi. */}
+        <p className="font-medium text-foreground">{title}</p>
         <p className="text-sm text-foreground">{message}</p>
       </div>
       {onRetry ? (

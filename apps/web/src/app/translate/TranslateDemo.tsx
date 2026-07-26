@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FRAME_DIMS } from "@/lib/landmarks";
-import { speakVietnamese, warmUpVoices } from "@/lib/speech";
+import { speakVietnameseNeural, warmUpTts } from "@/lib/neural-tts";
 import { useVisionPipeline } from "@/lib/useVisionPipeline";
 
 /**
@@ -59,12 +59,12 @@ export default function TranslateDemo() {
 
   // Trình duyệt nạp danh sách giọng bất đồng bộ; gọi sớm để câu ĐẦU TIÊN đã có giọng Việt
   useEffect(() => {
-    warmUpVoices();
+    warmUpTts();
   }, []);
 
   const handleSentence = useCallback(
     (sentence: SentenceItem) => {
-      if (autoSpeak) speakVietnamese(sentence.text);
+      if (autoSpeak) void speakVietnameseNeural(sentence.text);
     },
     [autoSpeak]
   );
@@ -126,7 +126,7 @@ export default function TranslateDemo() {
   }
 
   function handleSpeak() {
-    if (latest) speakVietnamese(latest.text);
+    if (latest) void speakVietnameseNeural(latest.text);
   }
 
   return (
