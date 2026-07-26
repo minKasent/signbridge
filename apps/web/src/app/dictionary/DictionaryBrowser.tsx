@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import Link from "next/link";
 import { BookOpen, Play, RefreshCw, SearchX, Video, X } from "lucide-react";
 import { buildSearchIndex, categoryLabel, clipSrc, searchSigns, useSigns, type Sign } from "./sign";
@@ -43,8 +43,10 @@ export default function DictionaryBrowser() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState(ALL_CATEGORIES);
   const [onlyWithClip, setOnlyWithClip] = useState(false);
-  const [visible, setVisible] = useState(PAGE_STEP);
   const [preview, setPreview] = useState<Sign | null>(null);
+  // Số thẻ đang hiện, GẮN với bộ lọc sinh ra nó: đổi bộ lọc là tự về 24 thẻ đầu
+  // mà không cần effect setState (effect như vậy gây thêm một vòng render).
+  const [shownState, setShownState] = useState({ key: "", count: PAGE_STEP });
 
   const deferredQuery = useDeferredValue(query);
   const isStale = query !== deferredQuery;
@@ -67,11 +69,8 @@ export default function DictionaryBrowser() {
     );
   }, [index, deferredQuery, category, onlyWithClip]);
 
-  // Đổi điều kiện lọc thì xem lại từ đầu, không giữ "đã tải 240 mục" của lần trước
-  useEffect(() => {
-    setVisible(PAGE_STEP);
-  }, [deferredQuery, category, onlyWithClip]);
-
+  const filterKey = `${deferredQuery}|${category}|${onlyWithClip}`;
+  const visible = shownState.key === filterKey ? shownState.count : PAGE_STEP;
   const shown = filtered.slice(0, visible);
   const withClipCount = useMemo(
     () => (signs ?? []).reduce((total, sign) => total + (sign.clipUrl ? 1 : 0), 0),
@@ -227,7 +226,11 @@ export default function DictionaryBrowser() {
 
           {shown.length < filtered.length ? (
             <div className="mt-6 flex justify-center">
-              <Button variant="outline" size="lg" onClick={() => setVisible((v) => v + PAGE_STEP)}>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setShownState({ key: filterKey, count: visible + PAGE_STEP })}
+              >
                 Tải thêm {Math.min(PAGE_STEP, filtered.length - shown.length)} ký hiệu
               </Button>
             </div>

@@ -1,427 +1,353 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { CheckCircle2, Loader2, LogOut, Plus, RefreshCw, SearchX, Settings2 } from "lucide-react";
+import { toast } from "sonner";
 import { API_BASE } from "@/lib/landmarks";
-import { authHeader, getUser, login, logout, type AuthUser } from "@/lib/auth";
+import { authHeader, useAuth } from "@/lib/auth";
+import { categoryLabel, normalizeGloss, useSigns, type Sign } from "@/app/dictionary/sign";
+import ClipRecorder, { type RecorderPhase } from "./ClipRecorder";
+import SignPicker from "./SignPicker";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 /**
- * Quay clip mẫu cho từ điển ngay trong browser (MediaRecorder → upload).
- * Mục đích chính: tự quay các từ mà Từ điển quốc gia QIPEDC còn thiếu
- * ("cảm ơn", "bác sĩ", "hôm nay"...) — hệ thống lấp khoảng trống tài nguyên.
- * Chỉ ADMIN được upload nên trang có bước đăng nhập.
+ * Luồng NHANH để quay bù clip cho những từ Từ điển quốc gia còn thiếu:
+ * Chọn từ → Quay → Xem lại & lưu, rồi chọn từ tiếp theo (camera vẫn sáng).
+ *
+ * Vì sao GIỮ /record khi /admin đã có hộp thoại quay clip (quyết định A4):
+ *  - /dictionary gắn liên kết sâu `?sign=GLOSS` cho từng từ thiếu clip; mở thẳng
+ *    tới đây nhanh hơn là mở cả bàn làm việc quản trị rồi tìm lại dòng đó.
+ *  - Hai luồng khác mục đích: /admin sửa dữ liệu, /record quay hàng loạt.
+ *  - Không còn trùng lặp mã: cả hai dùng chung <ClipRecorder>, và trang này KHÔNG
+ *    còn form đăng nhập riêng — chưa đăng nhập thì chuyển sang /login?next=…
  */
 
-type Sign = { id: number; gloss: string; meaningVi: string; category: string; clipUrl: string | null };
-type Phase = "idle" | "countdown" | "recording" | "preview" | "uploading";
+const RECORD_CATEGORY = "TUDIEN";
 
-const RECORD_MS = 3000;
+type StepState = "done" | "current" | "todo";
 
 function RecordToolInner() {
+  const router = useRouter();
   const preselect = useSearchParams().get("sign") ?? "";
+  const { auth, ready, logout } = useAuth();
+  const isAdmin = ready && auth?.role === "ADMIN";
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const previewRef = useRef<HTMLVideoElement>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
+  const { signs, loading, failed, reload, upsert, prepend } = useSigns(isAdmin);
 
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [signs, setSigns] = useState<Sign[]>([]);
-  const [query, setQuery] = useState(preselect);
-  const [selected, setSelected] = useState<Sign | null>(null);
+  // `choice` là lựa chọn NGƯỜI DÙNG đã bấm; null nghĩa là chưa bấm gì nên còn
+  // theo từ trong liên kết sâu ?sign=. Dẫn xuất trong render, không đồng bộ bằng
+  // effect setState (effect như vậy gây thêm vòng render và dễ ghi đè lựa chọn).
+  const [choice, setChoice] = useState<{ sign: Sign | null } | null>(null);
+  const [phase, setPhase] = useState<RecorderPhase>("starting");
+  const [savedId, setSavedId] = useState<number | null>(null);
   const [newWord, setNewWord] = useState("");
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [countdown, setCountdown] = useState(0);
-  const [clip, setClip] = useState<Blob | null>(null);
-  const [message, setMessage] = useState("");
+  const [creating, setCreating] = useState(false);
 
-  // Đọc phiên đăng nhập từ localStorage sau khi hydrate (microtask → không setState
-  // đồng bộ trong effect, và không lệch hydration giữa server/client)
+  // Guard: chờ đọc xong localStorage rồi mới quyết định; giữ lại `?sign=` để sau
+  // khi đăng nhập người dùng quay về đúng từ đang định quay.
   useEffect(() => {
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      // Chỉ ADMIN mới upload được clip — phiên USER (hoặc hết hạn) coi như chưa
-      // đăng nhập, không thì người dùng quay xong mới ăn 403 và mất công.
-      const restored = getUser();
-      if (restored && restored.role !== "ADMIN") {
-        logout();
-        setUser(null);
-        setMessage("Tài khoản này không có quyền quản trị — đăng nhập bằng tài khoản ADMIN.");
-        return;
-      }
-      setUser(restored);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!ready || (auth && auth.role === "ADMIN")) return;
+    const target = preselect === "" ? "/record" : `/record?sign=${encodeURIComponent(preselect)}`;
+    router.replace(`/login?next=${encodeURIComponent(target)}`);
+  }, [ready, auth, router, preselect]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/signs`);
-        const list: Sign[] = await res.json();
-        if (cancelled) return;
-        setSigns(list);
-        if (preselect) {
-          const found = list.find((s) => s.gloss === preselect);
-          if (found) setSelected(found);
-        }
-      } catch {
-        if (!cancelled) setMessage("Không gọi được backend :8080.");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [preselect]);
+  // Mở từ liên kết sâu /record?sign=GLOSS (nút "Quay clip" ở /dictionary)
+  const preselected = useMemo(
+    () => (preselect === "" ? null : (signs ?? []).find((sign) => sign.gloss === preselect) ?? null),
+    [signs, preselect]
+  );
+  const selected = choice ? choice.sign : preselected;
 
-  // Webcam bật khi đã đăng nhập; effect hủy được (chuẩn StrictMode)
-  useEffect(() => {
-    if (!user) return;
-    let disposed = false;
-    (async () => {
-      try {
-        const media = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480 },
-          audio: false,
-        });
-        if (disposed) {
-          media.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = media;
-        if (videoRef.current) {
-          videoRef.current.srcObject = media;
-          await videoRef.current.play();
-        }
-      } catch (e) {
-        if (!disposed) setMessage(`Không mở được camera: ${e instanceof Error ? e.message : e}`);
-      }
-    })();
-    return () => {
-      disposed = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = null;
-      }
-    };
-  }, [user]);
+  const missingClipCount = useMemo(
+    () => (signs ?? []).reduce((sum, sign) => sum + (sign.clipUrl ? 0 : 1), 0),
+    [signs]
+  );
 
-  async function handleLogin() {
-    setMessage("");
-    try {
-      const u = await login(email, password);
-      if (u.role !== "ADMIN") {
-        setMessage("Cần tài khoản ADMIN để upload clip từ điển.");
-        logout();
-        return;
-      }
-      setUser(u);
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  async function record() {
-    if (!streamRef.current || !selected) return;
-    setMessage("");
-    setClip(null);
-
-    setPhase("countdown");
-    for (let i = 3; i > 0; i--) {
-      setCountdown(i);
-      await new Promise((r) => setTimeout(r, 700));
-    }
-
-    // Đọc lại stream SAU đếm ngược: người dùng có thể rời trang / rút webcam
-    // trong 2.1 giây đó — dùng streamRef cũ sẽ ném TypeError và kẹt phase mãi.
-    const stream = streamRef.current;
-    if (!stream) {
-      setPhase("idle");
-      setMessage("Mất kết nối camera — thử lại.");
-      return;
-    }
-
-    setPhase("recording");
-    chunksRef.current = [];
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : "video/webm";
-    const recorder = new MediaRecorder(stream, { mimeType });
-    recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: "video/webm" });
-      setClip(blob);
-      setPhase("preview");
-      if (previewRef.current) {
-        // Thu hồi URL của lần quay trước, không thì mỗi lần quay lại rò một blob
-        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = URL.createObjectURL(blob);
-        previewRef.current.src = previewUrlRef.current;
-      }
-    };
-    recorderRef.current = recorder;
-    recorder.start();
-    await new Promise((r) => setTimeout(r, RECORD_MS));
-    // stop() khi recorder đã dừng (camera rút giữa chừng) ném InvalidStateError
-    if (recorder.state !== "inactive") recorder.stop();
-  }
-
-  /** Token hết hạn/không đủ quyền → xóa phiên để form đăng nhập hiện lại. */
   function handleAuthError() {
     logout();
-    setUser(null);
-    setPhase("idle");
-    setMessage("Phiên đăng nhập đã hết hạn hoặc không đủ quyền — hãy đăng nhập lại.");
+    toast.error("Phiên đăng nhập đã hết hạn", { description: "Hãy đăng nhập lại để tiếp tục." });
+    router.replace("/login?next=/record");
   }
 
-  async function upload() {
-    if (!clip || !selected) return;
-    setPhase("uploading");
-    try {
-      const form = new FormData();
-      form.append("file", clip, `${selected.gloss}.webm`);
-      const res = await fetch(`${API_BASE}/api/signs/${selected.id}/clip`, {
-        method: "POST",
-        headers: authHeader(),
-        body: form,
-      });
-      if (res.status === 401 || res.status === 403) {
-        handleAuthError();
-        return;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const updated: Sign = await res.json();
-      setSigns((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      setSelected(updated);
-      setMessage(`✅ Đã lưu clip cho "${updated.meaningVi}".`);
-      setClip(null);
-    } catch (e) {
-      setMessage(`❌ Upload lỗi: ${e instanceof Error ? e.message : e}`);
+  async function createSign(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const meaningVi = newWord.trim();
+    const gloss = normalizeGloss(meaningVi);
+    if (meaningVi === "" || gloss === "") {
+      toast.error("Chưa nhập được từ mới", { description: "Hãy nhập nghĩa tiếng Việt của từ." });
+      return;
     }
-    setPhase("idle");
-  }
-
-  async function createSign() {
-    const meaning = newWord.trim();
-    if (!meaning) return;
-    setMessage("");
+    setCreating(true);
     try {
-      const gloss = meaning
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/Đ/g, "D")
-        .toUpperCase()
-        .replace(/[^A-Z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "")
-        .slice(0, 60);
       const res = await fetch(`${API_BASE}/api/signs`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeader() },
-        body: JSON.stringify({ gloss, meaningVi: meaning, category: "TUDIEN" }),
+        body: JSON.stringify({ gloss, meaningVi, category: RECORD_CATEGORY }),
       });
       if (res.status === 401 || res.status === 403) {
         handleAuthError();
         return;
       }
-      if (!res.ok) throw new Error(res.status === 409 ? "Từ đã tồn tại" : `HTTP ${res.status}`);
+      if (res.status === 409) throw new Error(`Gloss “${gloss}” đã có trong từ điển`);
+      if (!res.ok) throw new Error(`Máy chủ trả lỗi ${res.status}`);
       const created: Sign = await res.json();
-      setSigns((prev) => [created, ...prev]);
-      setSelected(created);
+      prepend(created);
+      setChoice({ sign: created });
       setNewWord("");
-      setQuery(created.meaningVi);
-      setMessage(`Đã thêm từ "${created.meaningVi}" — giờ quay clip cho nó.`);
+      toast.success(`Đã thêm “${created.meaningVi}”`, { description: "Giờ quay clip cho từ này." });
     } catch (e) {
-      setMessage(`❌ ${e instanceof Error ? e.message : e}`);
+      toast.error("Không thêm được từ mới", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setCreating(false);
     }
   }
 
-  const q = query.trim().toLowerCase();
-  const candidates = signs
-    .filter((s) => q === "" || s.meaningVi.toLowerCase().includes(q) || s.gloss.toLowerCase().includes(q))
-    .sort((a, b) => Number(!!a.clipUrl) - Number(!!b.clipUrl))
-    .slice(0, 12);
+  const handlePhaseChange = useCallback((next: RecorderPhase) => setPhase(next), []);
 
-  if (!user) {
+  if (!isAdmin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-100">
-        <div className="w-80 rounded-xl bg-zinc-900 p-6">
-          <h1 className="mb-4 text-xl font-bold">Đăng nhập quản trị</h1>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="mb-2 w-full rounded-lg bg-zinc-800 px-3 py-2 outline-none ring-emerald-500 focus:ring-2"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            placeholder="Mật khẩu"
-            className="mb-3 w-full rounded-lg bg-zinc-800 px-3 py-2 outline-none ring-emerald-500 focus:ring-2"
-          />
-          <button
-            onClick={handleLogin}
-            className="w-full rounded-lg bg-emerald-600 py-2 font-medium hover:bg-emerald-500"
-          >
-            Đăng nhập
-          </button>
-          {message && <p className="mt-3 text-sm text-amber-400">{message}</p>}
-        </div>
+      <div className="mx-auto max-w-md px-6 py-16 text-center">
+        <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" aria-hidden />
+        <p className="mt-3 text-muted-foreground" aria-live="polite">
+          Đang kiểm tra phiên đăng nhập…
+        </p>
       </div>
     );
   }
 
+  const reviewing = phase === "preview" || phase === "uploading";
+  const justSaved = selected !== null && savedId === selected.id;
+
+  const steps: { label: string; hint: string; state: StepState }[] = [
+    {
+      label: "Chọn từ",
+      hint: selected ? selected.meaningVi : "Tìm từ còn thiếu clip",
+      state: selected ? "done" : "current",
+    },
+    {
+      label: "Quay 3 giây",
+      hint: selected ? "Đếm ngược 3-2-1 rồi ra ký hiệu" : "Chọn từ trước đã",
+      state: !selected ? "todo" : reviewing ? "done" : "current",
+    },
+    {
+      label: "Xem lại & lưu",
+      hint: justSaved ? "Đã lưu vào từ điển" : "Không ưng thì quay lại",
+      state: justSaved ? "done" : reviewing ? "current" : "todo",
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="mx-auto max-w-6xl px-6 py-8">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Quay clip từ điển</h1>
-          <p className="text-sm text-zinc-400">
-            Tự quay các từ mà từ điển quốc gia còn thiếu — {user.name}
+          <h1 className="text-2xl font-bold tracking-tight">Quay clip từ điển</h1>
+          <p className="text-muted-foreground">
+            Quay bù clip cho những từ Từ điển quốc gia còn thiếu
+            {signs ? ` — còn ${missingClipCount.toLocaleString("vi")} từ chưa có clip` : ""}.
           </p>
         </div>
-        <button
-          onClick={() => {
-            logout();
-            setUser(null);
-          }}
-          className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700"
-        >
-          Đăng xuất
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-6">
-        <div className="flex w-80 flex-col gap-3">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tìm từ cần quay…"
-            className="rounded-lg bg-zinc-900 px-3 py-2 outline-none ring-emerald-500 focus:ring-2"
-          />
-          <ul className="max-h-64 overflow-auto rounded-lg bg-zinc-900 p-2">
-            {candidates.map((s) => (
-              <li key={s.id}>
-                <button
-                  onClick={() => setSelected(s)}
-                  className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${
-                    selected?.id === s.id ? "bg-emerald-700" : "hover:bg-zinc-800"
-                  }`}
-                >
-                  <span>{s.meaningVi}</span>
-                  <span className="text-xs text-zinc-400">{s.clipUrl ? "có clip" : "— thiếu —"}</span>
-                </button>
-              </li>
-            ))}
-            {candidates.length === 0 && <li className="p-2 text-sm text-zinc-500">Không thấy từ nào.</li>}
-          </ul>
-
-          <div className="rounded-lg bg-zinc-900 p-3">
-            <p className="mb-2 text-xs text-zinc-500">Từ chưa có trong từ điển? Thêm mới:</p>
-            <div className="flex gap-2">
-              <input
-                value={newWord}
-                onChange={(e) => setNewWord(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && createSign()}
-                placeholder="VD: cảm ơn"
-                className="flex-1 rounded-lg bg-zinc-800 px-3 py-1.5 text-sm outline-none ring-emerald-500 focus:ring-2"
-              />
-              <button
-                onClick={createSign}
-                className="rounded-lg bg-sky-700 px-3 py-1.5 text-sm hover:bg-sky-600"
-              >
-                Thêm
-              </button>
-            </div>
-          </div>
-
-          {message && <p className="text-sm">{message}</p>}
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/admin">
+              <Settings2 aria-hidden />
+              Bàn quản trị
+            </Link>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              logout();
+              router.replace("/login");
+            }}
+          >
+            <LogOut aria-hidden />
+            Đăng xuất
+          </Button>
         </div>
+      </header>
 
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative">
-            <video
-              ref={videoRef}
-              playsInline
-              muted
-              className={`w-[480px] rounded-xl ${phase === "preview" ? "hidden" : ""}`}
-              style={{ transform: "scaleX(-1)" }}
-            />
-            <video
-              ref={previewRef}
-              controls
-              loop
-              className={`w-[480px] rounded-xl ${phase === "preview" ? "" : "hidden"}`}
-            />
-            {phase === "countdown" && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60 text-9xl font-bold text-emerald-400">
-                {countdown}
-              </div>
+      <ol className="mb-6 grid gap-3 sm:grid-cols-3">
+        {steps.map((step, i) => (
+          <li
+            key={step.label}
+            aria-current={step.state === "current" ? "step" : undefined}
+            className={cn(
+              "flex items-start gap-3 rounded-xl border p-3 transition-colors",
+              step.state === "current"
+                ? "border-primary/60 bg-primary/10"
+                : step.state === "done"
+                  ? "border-border bg-card"
+                  : "border-dashed border-border bg-card/40"
             )}
-            {phase === "recording" && (
-              <div className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-sm font-semibold">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-white" /> REC
-              </div>
-            )}
+          >
+            <span
+              className={cn(
+                "grid size-7 shrink-0 place-items-center rounded-full text-sm font-semibold",
+                step.state === "done"
+                  ? "bg-primary text-primary-foreground"
+                  : step.state === "current"
+                    ? "bg-primary/20 text-primary"
+                    : "bg-muted text-muted-foreground"
+              )}
+            >
+              {step.state === "done" ? <CheckCircle2 className="size-4" aria-hidden /> : i + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block font-medium">{step.label}</span>
+              <span className="block truncate text-sm text-muted-foreground">{step.hint}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      {loading ? (
+        <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
+          <Skeleton className="h-80 w-full" />
+          <Skeleton className="aspect-[4/3] w-full" />
+        </div>
+      ) : failed ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <SearchX className="size-8 text-destructive" aria-hidden />
+            <div role="alert">
+              <p className="font-medium">Không tải được từ điển</p>
+              <p className="text-sm text-muted-foreground">
+                Không gọi được máy chủ ở cổng 8080. Hãy chạy Spring core rồi thử lại.
+              </p>
+            </div>
+            <Button onClick={reload}>
+              <RefreshCw aria-hidden />
+              Thử lại
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid items-start gap-6 lg:grid-cols-[22rem_1fr]">
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="pt-4">
+                <SignPicker
+                  signs={signs ?? []}
+                  value={selected}
+                  onSelect={(sign) => setChoice({ sign })}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Từ chưa có trong từ điển?</CardTitle>
+                <CardDescription>
+                  Thêm rồi quay ngay. Gloss tự sinh:{" "}
+                  <span className="font-mono">{normalizeGloss(newWord) || "—"}</span>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={createSign} className="space-y-2" noValidate>
+                  <Label htmlFor="record-new-word">Nghĩa tiếng Việt</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="record-new-word"
+                      value={newWord}
+                      onChange={(e) => setNewWord(e.target.value)}
+                      placeholder="VD: cảm ơn"
+                      autoComplete="off"
+                    />
+                    <Button type="submit" variant="secondary" disabled={creating}>
+                      {creating ? <Loader2 className="animate-spin" aria-hidden /> : <Plus aria-hidden />}
+                      Thêm
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
           </div>
 
           {selected ? (
-            <p className="text-lg">
-              Đang quay cho: <span className="font-semibold text-emerald-400">“{selected.meaningVi}”</span>
-              {selected.clipUrl && <span className="ml-2 text-xs text-amber-400">(sẽ thay clip cũ)</span>}
-            </p>
-          ) : (
-            <p className="text-zinc-500">Chọn một từ bên trái để bắt đầu.</p>
-          )}
-
-          <div className="flex gap-3">
-            {phase === "preview" ? (
-              <>
-                <button
-                  onClick={upload}
-                  className="rounded-lg bg-emerald-600 px-5 py-2.5 font-semibold hover:bg-emerald-500"
-                >
-                  ✅ Dùng clip này
-                </button>
-                <button
-                  onClick={() => {
-                    setClip(null);
-                    setPhase("idle");
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-xl">Đang quay: “{selected.meaningVi}”</CardTitle>
+                    <CardDescription>
+                      <span className="font-mono">{selected.gloss}</span> ·{" "}
+                      {categoryLabel(selected.category)}
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {justSaved ? (
+                      <Badge>
+                        <CheckCircle2 aria-hidden />
+                        Đã lưu clip
+                      </Badge>
+                    ) : selected.clipUrl !== null ? (
+                      <Badge variant="secondary">Đã có clip — quay sẽ thay thế</Badge>
+                    ) : (
+                      <Badge variant="destructive">Chưa có clip</Badge>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setChoice({ sign: null });
+                        setSavedId(null);
+                      }}
+                    >
+                      Đổi từ khác
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ClipRecorder
+                  key={selected.id}
+                  sign={selected}
+                  onPhaseChange={handlePhaseChange}
+                  onAuthError={handleAuthError}
+                  onUploaded={(updated) => {
+                    upsert(updated);
+                    setChoice({ sign: updated });
+                    setSavedId(updated.id);
+                    toast.success(`Đã lưu clip cho “${updated.meaningVi}”`, {
+                      description: "Chọn từ khác ở cột bên trái để quay tiếp.",
+                    });
                   }}
-                  className="rounded-lg bg-zinc-800 px-5 py-2.5 hover:bg-zinc-700"
-                >
-                  🔄 Quay lại
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={record}
-                disabled={!selected || phase !== "idle"}
-                className="rounded-lg bg-red-600 px-5 py-2.5 font-semibold hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-zinc-700"
-              >
-                {phase === "uploading" ? "Đang lưu…" : "🎬 Quay (3 giây)"}
-              </button>
-            )}
-          </div>
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
+                <div className="grid size-12 place-items-center rounded-full bg-muted">
+                  <Plus className="size-6 text-muted-foreground" aria-hidden />
+                </div>
+                <div>
+                  <p className="font-medium">Chọn một từ để bật camera</p>
+                  <p className="text-sm text-muted-foreground">
+                    Danh sách bên trái xếp từ chưa có clip lên đầu — đó là việc cần làm trước.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 export default function RecordTool() {
+  // useSearchParams cần ranh giới Suspense khi trang được kết xuất tĩnh
   return (
     <Suspense>
       <RecordToolInner />

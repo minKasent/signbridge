@@ -124,7 +124,9 @@ export default function AdminStudio() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("moi-nhat");
   const [onlyMissingClip, setOnlyMissingClip] = useState(false);
-  const [page, setPage] = useState(0);
+  // Trang hiện tại GẮN với bộ lọc sinh ra nó: đổi tìm kiếm/sắp xếp là tự về trang
+  // 1, không cần effect setState (effect như vậy tạo thêm một vòng render).
+  const [pageState, setPageState] = useState({ key: "", page: 0 });
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Sign | null>(null);
@@ -154,13 +156,12 @@ export default function AdminStudio() {
     return sortSigns(scoped, sort);
   }, [index, deferredQuery, onlyMissingClip, sort]);
 
-  useEffect(() => {
-    setPage(0);
-  }, [deferredQuery, onlyMissingClip, sort]);
-
+  const filterKey = `${deferredQuery}|${onlyMissingClip}|${sort}`;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages - 1);
+  // Kẹp lại cả khi xóa bớt ký hiệu làm số trang giảm xuống dưới trang đang xem
+  const safePage = Math.min(pageState.key === filterKey ? pageState.page : 0, totalPages - 1);
   const rows = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const goToPage = (next: number) => setPageState({ key: filterKey, page: next });
 
   const total = signs?.length ?? 0;
   const withClip = useMemo(
@@ -511,7 +512,7 @@ export default function AdminStudio() {
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => setPage(Math.max(0, safePage - 1))}
+                onClick={() => goToPage(Math.max(0, safePage - 1))}
                 disabled={safePage === 0}
               >
                 <ChevronLeft aria-hidden />
@@ -519,7 +520,7 @@ export default function AdminStudio() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
+                onClick={() => goToPage(Math.min(totalPages - 1, safePage + 1))}
                 disabled={safePage >= totalPages - 1}
               >
                 Sau

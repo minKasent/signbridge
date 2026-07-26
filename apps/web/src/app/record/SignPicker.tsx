@@ -32,8 +32,10 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
   const listId = useId();
 
   const [query, setQuery] = useState("");
-  const [activeIndex, setActiveIndex] = useState(0);
   const [open, setOpen] = useState(false);
+  // Con trỏ bàn phím GẮN với từ khóa sinh ra nó: gõ thêm chữ là tự về mục đầu,
+  // không cần effect setState và không bao giờ trỏ vào chỉ số đã biến mất.
+  const [cursor, setCursor] = useState({ key: "", index: 0 });
   const listRef = useRef<HTMLUListElement>(null);
 
   // Gõ vào ô tìm phải mượt kể cả khi lọc 3.331 mục (quy tắc rerender-use-deferred-value)
@@ -50,10 +52,15 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
 
   const isStale = query !== deferredQuery;
 
-  // Danh sách đổi thì con trỏ về đầu, không trỏ vào chỉ số đã biến mất
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [deferredQuery, signs]);
+  const cursorKey = `${deferredQuery}|${signs.length}`;
+  const activeIndex = Math.min(
+    cursor.key === cursorKey ? cursor.index : 0,
+    Math.max(0, options.length - 1)
+  );
+
+  function moveCursor(index: number) {
+    setCursor({ key: cursorKey, index });
+  }
 
   // Giữ mục đang chọn trong tầm nhìn khi dùng bàn phím
   useEffect(() => {
@@ -77,7 +84,7 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
       }
       if (options.length === 0) return;
       const step = event.key === "ArrowDown" ? 1 : -1;
-      setActiveIndex((prev) => (prev + step + options.length) % options.length);
+      moveCursor((activeIndex + step + options.length) % options.length);
       return;
     }
     if (event.key === "Enter") {
@@ -147,7 +154,7 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
                 e.preventDefault();
                 choose(sign);
               }}
-              onMouseEnter={() => setActiveIndex(i)}
+              onMouseEnter={() => moveCursor(i)}
               className={cn(
                 "flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm",
                 i === activeIndex && "bg-muted",
