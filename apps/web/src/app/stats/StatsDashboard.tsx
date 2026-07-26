@@ -1,182 +1,276 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { Hand, RefreshCw } from "lucide-react";
+import { EmptyState, ErrorState } from "@/components/demo/state-views";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { API_BASE } from "@/lib/landmarks";
+import KpiCards from "./KpiCards";
+import ModelMetricsTable from "./ModelMetricsTable";
+import { buildDaySeries, normalizeMetrics, normalizeSummary, topGlosses } from "./stats-utils";
+import { RANGE_OPTIONS, type AnalyticsSummary, type ModelMetric, type RangeDays } from "./types";
 
 /**
- * Dashboard số liệu thật từ module analytics (bảng gloss_usages):
- * tổng lượt nhận diện, top ký hiệu và hoạt động theo ngày trong 7 ngày.
- * Biểu đồ vẽ thuần div/CSS theo quy ước — không thêm thư viện chart.
+ * Dashboard số liệu thật của module analytics.
+ *
+ * Hai API độc lập nhau (số liệu sử dụng và lịch sử huấn luyện) nên chúng được
+ * tải song song và hỏng riêng: bảng kết quả huấn luyện lỗi thì phần còn lại
+ * vẫn dùng được bình thường.
+ *
+ * Vì sao mọi setState đều nằm trong .then/.catch chứ không đứng thẳng trong
+ * effect: ESLint bật react-hooks/set-state-in-effect (đặt state đồng bộ trong
+ * thân effect gây render dây chuyền). Cùng lý do đó, chỉ nút bấm tay mới bật cờ
+ * "đang làm mới" — vòng tự động làm mới chạy ngầm, không nháy giao diện.
  */
 
-type Summary = {
-  totalGlosses: number;
-  byGloss: { gloss: string; count: number }[];
-  byDay: { date: string; count: number }[];
-};
+/** Nhịp tự động làm mới: đủ nhanh để thấy số nhảy khi demo, đủ chậm để không spam backend. */
+const POLL_MS = 7_000;
+const TOP_GLOSS_LIMIT = 10;
 
-const TOP_GLOSSES = 10;
-const DAYS = 7;
+/** Recharts nặng và chỉ trang này cần — thẻ KPI hiện ngay, biểu đồ nạp sau. */
+const StatsCharts = dynamic(() => import("./StatsCharts"), {
+  ssr: false,
+  loading: () => (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Skeleton className="h-96 w-full rounded-xl" />
+      <Skeleton className="h-96 w-full rounded-xl" />
+    </div>
+  ),
+});
 
-// Trục ngày phải tính theo ĐÚNG múi giờ backend gộp byDay (Asia/Ho_Chi_Minh,
-// xem AnalyticsController) — dùng giờ local máy xem thì entry "hôm nay VN"
-// không khớp cột nào và rơi khỏi biểu đồ khi máy xem không ở UTC+7.
-// Locale en-CA cho sẵn định dạng YYYY-MM-DD trùng với backend.
-const VN_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/** 7 ngày gần nhất theo giờ VN (VN không có DST nên lùi đúng 24h mỗi bước). */
-function lastDays(): string[] {
-  const days: string[] = [];
-  const now = Date.now();
-  for (let i = DAYS - 1; i >= 0; i--) {
-    days.push(VN_DAY.format(new Date(now - i * MS_PER_DAY)));
-  }
-  return days;
+/** Lỗi mạng/HTTP → câu tiếng Việt nói rõ phải kiểm tra gì. */
+function describeError(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  return `${detail}. Kiểm tra dịch vụ core đang chạy ở cổng 8080 rồi bấm Thử lại.`;
 }
 
-/** "2026-07-26" → "26/07" cho nhãn trục ngày. */
-function dayLabel(date: string): string {
-  return `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-4">
+      <p role="status" className="sr-only">
+        Đang tải số liệu thống kê…
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Skeleton className="h-36 w-full rounded-xl" />
+        <Skeleton className="h-36 w-full rounded-xl" />
+        <Skeleton className="h-36 w-full rounded-xl" />
+        <Skeleton className="h-36 w-full rounded-xl" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-96 w-full rounded-xl" />
+        <Skeleton className="h-96 w-full rounded-xl" />
+      </div>
+    </div>
+  );
 }
 
 export default function StatsDashboard() {
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<RangeDays>(7);
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<ModelMetric[] | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
-  // setState chỉ trong callback .then/.catch — thân hàm không setState đồng bộ,
-  // vì effect gọi thẳng hàm này lúc mount (rule react-hooks/set-state-in-effect).
-  // Trạng thái loading khởi tạo true; nút "Làm mới" tự set lại trước khi gọi.
-  const load = useCallback(() => {
-    fetch(`${API_BASE}/api/analytics/summary?days=${DAYS}`)
-      .then(async (res) => {
-        if (res.status === 401 || res.status === 403) {
-          setError(
-            "API thống kê hiện yêu cầu đăng nhập — số liệu sẽ hiện khi cấu hình mở công khai được áp dụng ở khâu tích hợp."
-          );
-          return;
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setSummary((await res.json()) as Summary);
-        setError(null);
-      })
-      .catch((e: unknown) => {
-        setError(`Không tải được số liệu: ${e instanceof Error ? e.message : String(e)}`);
-      })
-      .finally(() => setLoading(false));
+  /** Hủy lượt tải đang dở khi đổi khoảng ngày / rời trang / bấm làm mới liên tục. */
+  const abortRef = useRef<AbortController | null>(null);
+  /** Có lượt tải đang chạy không — vòng poll dựa vào đây để KHÔNG cắt ngang lượt cũ. */
+  const inFlightRef = useRef(false);
+
+  // KHÔNG khai báo async: mọi setState phải nằm trong callback .then, không được
+  // đứng trong thân hàm được effect gọi thẳng (react-hooks/set-state-in-effect).
+  const loadAll = useCallback((days: RangeDays) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    inFlightRef.current = true;
+    const { signal } = controller;
+
+    // Hai lời gọi độc lập → chạy song song, và hỏng riêng từng cái
+    return Promise.allSettled([
+      fetch(`${API_BASE}/api/analytics/summary?days=${days}`, { signal }).then(async (res) => {
+        if (!res.ok) throw new Error(`Máy chủ trả mã ${res.status}`);
+        return normalizeSummary(await res.json());
+      }),
+      fetch(`${API_BASE}/api/analytics/model-metrics`, { signal }).then(async (res) => {
+        if (!res.ok) throw new Error(`Máy chủ trả mã ${res.status}`);
+        return normalizeMetrics(await res.json());
+      }),
+    ]).then(([summaryResult, metricsResult]) => {
+      if (signal.aborted) return;
+
+      if (summaryResult.status === "fulfilled") {
+        setSummary(summaryResult.value);
+        setSummaryError(null);
+      }
+      else if (!isAbort(summaryResult.reason)) {
+        setSummaryError(describeError(summaryResult.reason));
+      }
+
+      if (metricsResult.status === "fulfilled") {
+        setMetrics(metricsResult.value);
+        setMetricsError(null);
+      }
+      else if (!isAbort(metricsResult.reason)) {
+        setMetricsError(describeError(metricsResult.reason));
+      }
+    }).finally(() => {
+      // Chỉ hạ cờ nếu đây vẫn là lượt hiện tại: lượt mới hơn đã hủy lượt này thì
+      // nó mới là chủ của cờ.
+      if (abortRef.current === controller) inFlightRef.current = false;
+    });
   }, []);
 
+  // Tải lần đầu và mỗi khi đổi khoảng ngày
   useEffect(() => {
-    load();
-  }, [load]);
+    void loadAll(range);
+    return () => abortRef.current?.abort();
+  }, [loadAll, range]);
 
-  const topGlosses = summary?.byGloss.slice(0, TOP_GLOSSES) ?? [];
-  const maxGloss = topGlosses[0]?.count ?? 0;
+  // Tự động làm mới — dọn hẹn giờ khi tắt công tắc, đổi khoảng, hoặc rời trang.
+  // Backend chậm hơn một nhịp poll thì BỎ QUA nhịp đó thay vì hủy lượt đang chạy:
+  // hủy đều đặn mỗi 7 giây sẽ khiến số liệu không bao giờ về được.
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const timer = setInterval(() => {
+      if (!inFlightRef.current) void loadAll(range);
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [autoRefresh, loadAll, range]);
 
-  const dayCounts = new Map(summary?.byDay.map((d) => [d.date, d.count]) ?? []);
-  const days = lastDays().map((date) => ({ date, count: dayCounts.get(date) ?? 0 }));
-  const maxDay = Math.max(0, ...days.map((d) => d.count));
-  const todayCount = days[days.length - 1]?.count ?? 0;
+  function handleManualRefresh() {
+    setRefreshing(true);
+    void loadAll(range).finally(() => setRefreshing(false));
+  }
+
+  const firstLoad = summary === null && summaryError === null;
+  const days = summary ? buildDaySeries(summary.byDay, range) : [];
+  const glosses = summary ? topGlosses(summary.byGloss, TOP_GLOSS_LIMIT) : [];
+  const noData = summary !== null && summary.totalGlosses === 0;
+
+  /**
+   * Nội dung của khoảng ngày đang chọn. Lỗi khi ĐÃ có số liệu chỉ hiện thành dải
+   * cảnh báo phía trên chứ không thay thế dashboard: một nhịp tự động làm mới hụt
+   * mà xóa sạch màn hình đang chiếu là mất mặt ngay giữa buổi bảo vệ.
+   */
+  const rangeBody = (
+    <>
+      {summaryError !== null ? (
+        <ErrorState
+          title={summary === null ? "Không tải được số liệu sử dụng" : "Không làm mới được số liệu"}
+          message={
+            summary === null
+              ? summaryError
+              : `${summaryError} Số liệu bên dưới là lần tải gần nhất còn dùng được.`
+          }
+          onRetry={handleManualRefresh}
+        />
+      ) : null}
+
+      {firstLoad ? <DashboardSkeleton /> : null}
+
+      {summary !== null ? (
+        <>
+          <KpiCards
+            totalGlosses={summary.totalGlosses}
+            distinctGlosses={summary.byGloss.length}
+            latency={summary.latency}
+            days={range}
+          />
+          {noData ? (
+            <Card>
+              <CardContent>
+                <EmptyState
+                  icon={Hand}
+                  title="Chưa có lượt nhận diện nào"
+                  hint={`Trong ${range} ngày gần nhất chưa có ký hiệu nào được nhận diện. Chạy một phiên dịch rồi quay lại đây — số liệu hiện ngay.`}
+                  action={
+                    <Button asChild>
+                      <Link href="/translate">
+                        <Hand aria-hidden />
+                        Mở trang Phiên dịch
+                      </Link>
+                    </Button>
+                  }
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <StatsCharts days={days} glosses={glosses} rangeDays={range} />
+          )}
+        </>
+      ) : null}
+    </>
+  );
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
-      <div className="mb-4 flex items-center gap-4">
-        <div>
-          <h1 className="mb-1 text-2xl font-bold">SignBridge — Thống kê sử dụng</h1>
-          <p className="text-sm text-zinc-400">
-            Số liệu thật từ các phiên dịch (/translate, /video) — module analytics ghi qua sự kiện.
+    <div className="mx-auto max-w-6xl px-6 py-8">
+      <header className="mb-6 flex flex-wrap items-start gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight">Thống kê sử dụng</h1>
+          <p className="text-muted-foreground">
+            Số liệu thật ghi từ các phiên dịch — module analytics nhận sự kiện và lưu vào cơ sở dữ liệu.
           </p>
         </div>
-        <button
-          onClick={() => {
-            setLoading(true);
-            setError(null);
-            load();
-          }}
-          disabled={loading}
-          className="ml-auto rounded-lg bg-sky-700 px-4 py-2 font-medium hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-600"
-        >
-          {loading ? "Đang tải…" : "⟳ Làm mới"}
-        </button>
-      </div>
 
-      {error && (
-        <div className="mb-6 rounded-lg border border-amber-700 bg-amber-950/40 p-4 text-amber-400">
-          {error}
+        <div className="flex flex-wrap items-center gap-4 sm:ml-auto">
+          <div className="flex items-center gap-2">
+            <Switch id="stats-auto-refresh" checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+            <Label htmlFor="stats-auto-refresh" className="text-sm text-muted-foreground">
+              Tự động làm mới
+            </Label>
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+            aria-label="Làm mới số liệu ngay"
+          >
+            <RefreshCw aria-hidden className={refreshing ? "animate-spin" : undefined} />
+            {refreshing ? "Đang tải…" : "Làm mới"}
+          </Button>
         </div>
-      )}
+      </header>
 
-      {summary && (
-        <>
-          <div className="mb-6 grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-xl bg-zinc-900 p-4">
-              <p className="text-sm text-zinc-400">Tổng lượt nhận diện ({DAYS} ngày)</p>
-              <p className="mt-1 text-3xl font-bold text-emerald-400">{summary.totalGlosses}</p>
-            </div>
-            <div className="rounded-xl bg-zinc-900 p-4">
-              <p className="text-sm text-zinc-400">Số ký hiệu khác nhau</p>
-              <p className="mt-1 text-3xl font-bold text-sky-400">{summary.byGloss.length}</p>
-            </div>
-            <div className="rounded-xl bg-zinc-900 p-4">
-              <p className="text-sm text-zinc-400">Hôm nay</p>
-              <p className="mt-1 text-3xl font-bold text-zinc-100">{todayCount}</p>
-            </div>
-          </div>
+      {/* Mỗi tab PHẢI có TabsContent tương ứng: Radix gắn aria-controls từ trigger
+          sang panel, thiếu panel là trỏ vào id không tồn tại — trình đọc màn hình
+          báo lỗi cấu trúc. Radix chỉ gắn panel đang chọn nên không render thừa. */}
+      <Tabs value={String(range)} onValueChange={(value) => setRange(Number(value) as RangeDays)}>
+        <TabsList aria-label="Chọn khoảng thời gian">
+          {RANGE_OPTIONS.map((option) => (
+            <TabsTrigger key={option} value={String(option)}>
+              {option} ngày
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-          <div className="flex max-w-5xl flex-wrap gap-6">
-            <div className="min-w-80 flex-1 rounded-xl bg-zinc-900 p-4">
-              <h2 className="mb-3 font-semibold text-emerald-400">
-                Top {TOP_GLOSSES} ký hiệu được nhận diện
-              </h2>
-              {topGlosses.length === 0 ? (
-                <p className="text-sm text-zinc-500">
-                  Chưa có dữ liệu — chạy trang /translate hoặc /video để sinh số liệu.
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-2">
-                  {topGlosses.map((g) => (
-                    <li key={g.gloss} className="flex items-center gap-2 text-sm">
-                      <span className="w-28 shrink-0 truncate font-mono text-sky-300" title={g.gloss}>
-                        {g.gloss}
-                      </span>
-                      <div className="h-4 flex-1 rounded bg-zinc-800">
-                        <div
-                          className="h-full rounded bg-emerald-600"
-                          style={{ width: `${maxGloss > 0 ? (g.count / maxGloss) * 100 : 0}%` }}
-                        />
-                      </div>
-                      <span className="w-10 shrink-0 text-right text-zinc-400">{g.count}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+        <p aria-live="polite" className="sr-only">
+          {autoRefresh ? "Đang tự động làm mới số liệu mỗi 7 giây" : "Tự động làm mới đang tắt"}
+        </p>
 
-            <div className="min-w-80 flex-1 rounded-xl bg-zinc-900 p-4">
-              <h2 className="mb-3 font-semibold text-sky-400">Hoạt động {DAYS} ngày gần nhất</h2>
-              <div className="flex items-end gap-2">
-                {days.map((d) => (
-                  <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
-                    <span className="h-4 text-xs text-zinc-400">{d.count > 0 ? d.count : ""}</span>
-                    <div className="flex h-36 w-full items-end">
-                      <div
-                        className="w-full rounded-t bg-sky-600"
-                        style={{
-                          height: `${
-                            maxDay > 0 ? Math.max(d.count > 0 ? 4 : 0, (d.count / maxDay) * 100) : 0
-                          }%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-zinc-500">{dayLabel(d.date)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+        {RANGE_OPTIONS.map((option) => (
+          <TabsContent key={option} value={String(option)} className="mt-6 space-y-4">
+            {rangeBody}
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      {/* Kết quả huấn luyện không phụ thuộc khoảng ngày → để ngoài tab */}
+      <div className="mt-4">
+        <ModelMetricsTable metrics={metrics} error={metricsError} onRetry={handleManualRefresh} />
+      </div>
     </div>
   );
 }

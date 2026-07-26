@@ -43,6 +43,12 @@ class GlossUsage {
 	@Column(nullable = false)
 	private double confidence;
 
+	/**
+	 * Độ trễ server (ms) từ lúc nhận lô frame tới lúc gloss sẵn sàng gửi.
+	 * Để null được: các bản ghi thu trước khi có phép đo vẫn phải đọc lên bình thường.
+	 */
+	private Long latencyMs;
+
 	@Column(nullable = false)
 	private Instant at;
 }

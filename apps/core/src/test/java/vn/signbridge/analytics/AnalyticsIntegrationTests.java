@@ -1,6 +1,7 @@
 package vn.signbridge.analytics;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -32,7 +33,7 @@ import vn.signbridge.translation.GlossRecognized;
 /**
  * Test tích hợp module analytics trên Postgres thật: bắn sự kiện GlossRecognized
  * TRONG transaction (@ApplicationModuleListener chỉ chạy SAU commit), chờ listener
- * async ghi DB rồi đối chiếu số liệu gộp qua API summary.
+ * async ghi DB rồi đối chiếu số liệu gộp qua API summary — gồm cả phân vị độ trễ.
  *
  * Không dùng chung TestcontainersConfiguration (package-private ở vn.signbridge):
  * test module đặt trong package module theo quy ước nên tự khai báo container.
@@ -52,6 +53,10 @@ class AnalyticsIntegrationTests {
 	}
 
 	private static final ParameterizedTypeReference<Map<String, Object>> JSON_MAP =
+			new ParameterizedTypeReference<>() {
+			};
+
+	private static final ParameterizedTypeReference<List<Map<String, Object>>> JSON_LIST =
 			new ParameterizedTypeReference<>() {
 			};
 
@@ -90,9 +95,9 @@ class AnalyticsIntegrationTests {
 		// biên nửa đêm (test chạy lúc 23:59:59 vẫn phải xanh)
 		Instant at = Instant.now();
 		transactions.executeWithoutResult(tx -> {
-			events.publishEvent(new GlossRecognized("phien-it", "XIN_CHAO", 0.91, at));
-			events.publishEvent(new GlossRecognized("phien-it", "XIN_CHAO", 0.88, at));
-			events.publishEvent(new GlossRecognized("phien-it", "CAM_ON", 0.95, at));
+			events.publishEvent(new GlossRecognized("phien-it", "XIN_CHAO", 0.91, 100L, at));
+			events.publishEvent(new GlossRecognized("phien-it", "XIN_CHAO", 0.88, 120L, at));
+			events.publishEvent(new GlossRecognized("phien-it", "CAM_ON", 0.95, 140L, at));
 		});
 
 		// Listener chạy async sau commit → poll tối đa ~10 giây
@@ -123,12 +128,66 @@ class AnalyticsIntegrationTests {
 		String expectedDay = LocalDate.ofInstant(at, ZONE_VN).toString();
 		assertThat(byDay).extracting(d -> d.get("date")).containsExactly(expectedDay);
 		assertThat(((Number) byDay.get(0).get("count")).longValue()).isEqualTo(3);
+
+		// Phân vị độ trễ tính trong SQL: p50 của [100,120,140] = 120, p95 = 138
+		@SuppressWarnings("unchecked")
+		Map<String, Object> latency = (Map<String, Object>) summary.get("latency");
+		assertThat(latency).as("phải có số liệu độ trễ khi gloss kèm latencyMs").isNotNull();
+		assertThat(((Number) latency.get("samples")).longValue()).isEqualTo(3);
+		assertThat(((Number) latency.get("p50")).doubleValue()).isCloseTo(120.0, within(0.2));
+		assertThat(((Number) latency.get("p95")).doubleValue()).isCloseTo(138.0, within(0.2));
+	}
+
+	@Test
+	void chiAdminMoiGhiDuocKetQuaHuanLuyen() {
+		String userToken = registerToken("metric-user@signbridge.vn");
+		Map<String, Object> body = Map.of(
+				"version", "exp03-voya-pretrain",
+				"accuracy", 0.82,
+				"top5Accuracy", 0.95,
+				"numClasses", 161,
+				"note", "pretrain VOYA 161 lớp");
+
+		// Không token → 401 (SecurityConfig chỉ mở công khai cho GET)
+		assertThat(postMetric(null, body).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+		// Token USER → 403 do kiểm quyền trong thân controller
+		assertThat(postMetric(userToken, body).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+		// Token ADMIN → 201
+		assertThat(postMetric(adminToken(), body).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+		// Đọc lại: công khai, không cần token
+		ResponseEntity<List<Map<String, Object>>> listed = client.get().uri("/api/analytics/model-metrics")
+				.retrieve().toEntity(JSON_LIST);
+		assertThat(listed.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(listed.getBody()).extracting(m -> m.get("version")).contains("exp03-voya-pretrain");
+
+		// accuracy ngoài khoảng 0..1 → 400, không được lọt vào bảng số liệu báo cáo
+		Map<String, Object> invalid = Map.of("version", "sai", "accuracy", 4.2);
+		assertThat(postMetric(adminToken(), invalid).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+	}
+
+	private ResponseEntity<Map<String, Object>> postMetric(String token, Map<String, Object> body) {
+		RestClient.RequestBodySpec request = client.post().uri("/api/analytics/model-metrics")
+				.contentType(MediaType.APPLICATION_JSON);
+		if (token != null) {
+			request = request.header("Authorization", "Bearer " + token);
+		}
+		return request.body(body).retrieve().toEntity(JSON_MAP);
 	}
 
 	private ResponseEntity<Map<String, Object>> getSummary(String token, int days) {
 		return client.get().uri("/api/analytics/summary?days=" + days)
 				.header("Authorization", "Bearer " + token)
 				.retrieve().toEntity(JSON_MAP);
+	}
+
+	private String adminToken() {
+		ResponseEntity<Map<String, Object>> login = client.post().uri("/api/auth/login")
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(Map.of("email", "admin@signbridge.vn", "password", "signbridge-admin-dev"))
+				.retrieve().toEntity(JSON_MAP);
+		assertThat(login.getStatusCode()).isEqualTo(HttpStatus.OK);
+		return (String) login.getBody().get("token");
 	}
 
 	private String registerToken(String email) {

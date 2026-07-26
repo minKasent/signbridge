@@ -65,6 +65,9 @@ class LandmarkWebSocketHandler extends TextWebSocketHandler {
 
 	@Override
 	protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+		// Mốc bắt đầu đo độ trễ đầu-cuối phía server: từ lúc lô frame tới nơi cho
+		// tới lúc gloss sẵn sàng gửi lại (số liệu p50/p95 của chương đánh giá).
+		long receivedAtNanos = System.nanoTime();
 		ClientMessage incoming;
 		try {
 			incoming = objectMapper.readValue(message.getPayload(), ClientMessage.class);
@@ -108,7 +111,8 @@ class LandmarkWebSocketHandler extends TextWebSocketHandler {
 			buffer.subList(0, STRIDE).clear();
 			windows++;
 
-			TranslationService.WindowOutcome outcome = translationService.processWindow(session.getId(), window);
+			TranslationService.WindowOutcome outcome =
+					translationService.processWindow(session.getId(), window, receivedAtNanos);
 			outcome.glossResult().ifPresent(result -> send(session.getId(), Map.of(
 					"type", "gloss",
 					"gloss", result.gloss(),
