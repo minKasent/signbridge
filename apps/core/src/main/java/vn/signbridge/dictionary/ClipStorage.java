@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +30,17 @@ class ClipStorage {
 		Files.createDirectories(this.clipsDir);
 	}
 
+	/**
+	 * Xóa file clip của một ký hiệu (nếu có) — gọi khi xóa ký hiệu khỏi từ điển,
+	 * không để file mồ côi chiếm chỗ. Xóa cả hai đuôi vì clip cũ có thể là mp4
+	 * (import QIPEDC) còn clip mới quay là webm.
+	 */
+	void delete(long signId) throws IOException {
+		for (String extension : List.of(".webm", ".mp4")) {
+			Files.deleteIfExists(clipsDir.resolve("sign-" + signId + extension));
+		}
+	}
+
 	/** Lưu clip cho một ký hiệu, trả về đường dẫn public (/clips/...). */
 	String store(long signId, MultipartFile file) throws IOException {
 		String extension = switch (file.getContentType() == null ? "" : file.getContentType()) {
@@ -46,6 +58,17 @@ class ClipStorage {
 		catch (IOException | RuntimeException e) {
 			Files.deleteIfExists(temp);
 			throw e;
+		}
+		// Dọn file đuôi đối nghịch: quay .webm thay clip .mp4 import sẵn mà không
+		// xóa thì file cũ vẫn được serve công khai tại /clips/sign-{id}.mp4 —
+		// "thay clip" phải thay thật. Best-effort: lỗi xóa (file đang được serve
+		// trên Windows) không làm hỏng upload đã thành công.
+		String otherExtension = extension.equals(".webm") ? ".mp4" : ".webm";
+		try {
+			Files.deleteIfExists(clipsDir.resolve("sign-" + signId + otherExtension));
+		}
+		catch (IOException e) {
+			// bỏ qua — file cũ thành mồ côi, lần delete(signId) sau sẽ dọn nốt
 		}
 		return "/clips/" + filename;
 	}
