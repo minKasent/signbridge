@@ -293,7 +293,7 @@ function SignCard({ sign, onPlay }: { sign: Sign; onPlay: () => void }) {
 
         <div className="space-y-1">
           <p className="font-medium leading-snug">{sign.meaningVi}</p>
-          <p className="truncate font-mono text-xs text-muted-foreground">{sign.gloss}</p>
+          <p className="truncate font-mono text-sm text-muted-foreground">{sign.gloss}</p>
         </div>
 
         <div className="flex items-center justify-between gap-2">

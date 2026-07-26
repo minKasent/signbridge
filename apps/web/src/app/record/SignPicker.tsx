@@ -8,8 +8,12 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 /**
- * Chọn ký hiệu trong kho 3.331 mục: hộp tìm kiếm + danh sách kết quả theo đúng
- * mẫu combobox của ARIA (điều hướng bằng ↑ ↓, chọn bằng Enter, đóng bằng Escape).
+ * Chọn ký hiệu trong kho 3.331 mục: hộp tìm kiếm + danh sách kết quả theo mẫu
+ * combobox của ARIA — điều hướng bằng ↑ ↓, chọn bằng Enter, Escape xóa từ khóa.
+ *
+ * Danh sách LUÔN hiển thị (đây là bảng chọn của một trang công việc, không phải
+ * ô tìm kiếm thu gọn), nên `aria-expanded` luôn là true: nói "collapsed" trong khi
+ * danh sách đang nằm ngay đó là dối trình đọc màn hình.
  *
  * Không dùng `<select>` vì 3.331 <option> khiến trình duyệt treo và không tìm được
  * theo nghĩa tiếng Việt; không cài `cmdk` vì thêm dependency phải sửa `package.json`
@@ -27,12 +31,17 @@ type Props = {
   className?: string;
 };
 
-export function SignPicker({ signs, value, onSelect, missingClipFirst = true, className }: Props) {
+export function SignPicker({
+  signs,
+  value,
+  onSelect,
+  missingClipFirst = true,
+  className,
+}: Props) {
   const inputId = useId();
   const listId = useId();
 
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
   // Con trỏ bàn phím GẮN với từ khóa sinh ra nó: gõ thêm chữ là tự về mục đầu,
   // không cần effect setState và không bao giờ trỏ vào chỉ số đã biến mất.
   const [cursor, setCursor] = useState({ key: "", index: 0 });
@@ -57,6 +66,7 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
     cursor.key === cursorKey ? cursor.index : 0,
     Math.max(0, options.length - 1)
   );
+  const activeOption = options[activeIndex];
 
   function moveCursor(index: number) {
     setCursor({ key: cursorKey, index });
@@ -64,44 +74,34 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
 
   // Giữ mục đang chọn trong tầm nhìn khi dùng bàn phím
   useEffect(() => {
-    if (!open) return;
     const active = listRef.current?.children[activeIndex];
     active?.scrollIntoView({ block: "nearest" });
-  }, [activeIndex, open]);
+  }, [activeIndex]);
 
   function choose(sign: Sign) {
     onSelect(sign);
     setQuery("");
-    setOpen(false);
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
       if (options.length === 0) return;
+      event.preventDefault();
       const step = event.key === "ArrowDown" ? 1 : -1;
       moveCursor((activeIndex + step + options.length) % options.length);
       return;
     }
-    if (event.key === "Enter") {
-      const picked = options[activeIndex];
-      if (open && picked) {
-        event.preventDefault();
-        choose(picked);
-      }
+    if (event.key === "Enter" && activeOption) {
+      event.preventDefault();
+      choose(activeOption);
       return;
     }
-    if (event.key === "Escape" && open) {
+    // Escape trong combobox = xóa nội dung đang gõ (mẫu ARIA APG)
+    if (event.key === "Escape" && query !== "") {
       event.preventDefault();
-      setOpen(false);
+      setQuery("");
     }
   }
-
-  const activeOption = open ? options[activeIndex] : undefined;
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -114,7 +114,7 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
         <Input
           id={inputId}
           role="combobox"
-          aria-expanded={open}
+          aria-expanded
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={activeOption ? `${listId}-${activeOption.id}` : undefined}
@@ -122,11 +122,7 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
           value={query}
           placeholder="VD: cảm ơn, bác sĩ, cam on…"
           className="pl-9"
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
+          onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
         />
       </div>
@@ -138,6 +134,7 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
         aria-label="Kết quả tìm ký hiệu"
         className={cn(
           "max-h-64 overflow-y-auto rounded-xl border border-border bg-card p-1",
+          options.length === 0 && "hidden",
           isStale && "opacity-70"
         )}
       >
@@ -150,7 +147,7 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
               role="option"
               aria-selected={selected}
               onMouseDown={(e) => {
-                // mousedown thay vì click: click xảy ra sau blur, lúc đó danh sách đã đóng
+                // mousedown thay vì click: click xảy ra sau blur, lúc đó ô tìm đã mất focus
                 e.preventDefault();
                 choose(sign);
               }}
@@ -163,29 +160,32 @@ export function SignPicker({ signs, value, onSelect, missingClipFirst = true, cl
             >
               <span className="min-w-0">
                 <span className="block truncate">{sign.meaningVi}</span>
-                <span className="block truncate font-mono text-xs text-muted-foreground">{sign.gloss}</span>
+                <span className="block truncate font-mono text-sm text-muted-foreground">
+                  {sign.gloss}
+                </span>
               </span>
               {sign.clipUrl ? (
-                <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                  <CheckCircle2 className="size-3.5 text-primary" aria-hidden />
+                <span className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground">
+                  <CheckCircle2 className="size-4 text-primary" aria-hidden />
                   có clip
                 </span>
               ) : (
-                <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                  <CircleDashed className="size-3.5" aria-hidden />
+                <span className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground">
+                  <CircleDashed className="size-4" aria-hidden />
                   chưa có
                 </span>
               )}
             </li>
           );
         })}
-        {options.length === 0 ? (
-          <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-            Không có ký hiệu nào khớp “{query}”. Tìm không phụ thuộc dấu — thử từ khác, hoặc thêm từ
-            mới bên dưới.
-          </li>
-        ) : null}
       </ul>
+
+      {options.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          Không có ký hiệu nào khớp “{query}”. Tìm kiếm không phụ thuộc dấu — thử từ khác, hoặc
+          thêm từ mới bên dưới.
+        </p>
+      ) : null}
 
       <p aria-live="polite" className="text-sm text-muted-foreground">
         {options.length > 0

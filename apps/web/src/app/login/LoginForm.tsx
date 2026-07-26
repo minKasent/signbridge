@@ -66,10 +66,19 @@ function LoginFormInner() {
     <div className="mx-auto flex min-h-[70vh] max-w-md items-center px-6 py-12">
       <Card className="w-full">
         <CardHeader>
-          <span className="grid size-10 place-items-center rounded-xl bg-primary/15 text-primary">
-            <ShieldCheck className="size-5" aria-hidden />
+          <span className="flex items-center gap-2 text-lg font-semibold">
+            <span
+              className="grid size-9 place-items-center rounded-xl bg-primary font-bold text-primary-foreground"
+              aria-hidden
+            >
+              S
+            </span>
+            Sign<span className="-ml-2 text-primary">Bridge</span>
           </span>
-          <CardTitle className="text-xl">Đăng nhập quản trị</CardTitle>
+          <CardTitle className="mt-2 flex items-center gap-2 text-xl">
+            <ShieldCheck className="size-5 text-primary" aria-hidden />
+            Đăng nhập quản trị
+          </CardTitle>
           <CardDescription>
             {next === "/admin"
               ? "Khu vực quản lý từ điển ký hiệu — cần tài khoản có quyền ADMIN."

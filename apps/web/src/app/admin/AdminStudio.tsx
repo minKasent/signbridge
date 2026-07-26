@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
+  ArrowUpNarrowWide,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -112,6 +113,41 @@ function sortSigns(signs: Sign[], mode: SortMode): Sign[] {
 /** aria-sort để trình đọc màn hình biết bảng đang xếp theo cột nào. */
 function ariaSort(mode: SortMode, column: SortMode): "ascending" | "none" {
   return mode === column ? "ascending" : "none";
+}
+
+/**
+ * Đầu cột bấm được để đổi cách sắp xếp — đổi bằng chuột/bàn phím ngay tại bảng,
+ * không phải đi tìm ô "Sắp xếp" (ô đó vẫn còn vì "Mới nhất" không thuộc cột nào).
+ */
+function SortableHead({
+  column,
+  sort,
+  onSort,
+  children,
+}: {
+  column: SortMode;
+  sort: SortMode;
+  onSort: (mode: SortMode) => void;
+  children: React.ReactNode;
+}) {
+  const active = sort === column;
+  return (
+    <TableHead aria-sort={ariaSort(sort, column)} className="p-0">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-10 w-full justify-start rounded-none px-3 font-medium"
+        onClick={() => onSort(column)}
+        aria-label={`Sắp xếp theo ${SORT_LABELS[column]}`}
+      >
+        {children}
+        <ArrowUpNarrowWide
+          className={active ? "text-primary" : "text-muted-foreground/40"}
+          aria-hidden
+        />
+      </Button>
+    </TableHead>
+  );
 }
 
 export default function AdminStudio() {
@@ -435,10 +471,16 @@ export default function AdminStudio() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead aria-sort={ariaSort(sort, "gloss")}>Gloss</TableHead>
-                    <TableHead aria-sort={ariaSort(sort, "nghia")}>Nghĩa tiếng Việt</TableHead>
+                    <SortableHead column="gloss" sort={sort} onSort={setSort}>
+                      Gloss
+                    </SortableHead>
+                    <SortableHead column="nghia" sort={sort} onSort={setSort}>
+                      Nghĩa tiếng Việt
+                    </SortableHead>
                     <TableHead>Chủ đề</TableHead>
-                    <TableHead aria-sort={ariaSort(sort, "thieu-clip")}>Clip mẫu</TableHead>
+                    <SortableHead column="thieu-clip" sort={sort} onSort={setSort}>
+                      Clip mẫu
+                    </SortableHead>
                     <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
