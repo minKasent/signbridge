@@ -22,20 +22,28 @@ chuỗi nhãn lại là xong; nhận định này được ghi thẳng vào thi�
 (`translation/SentenceComposer.java`, dòng 24-26), và luật đầu tiên trong prompt gửi cho
 mô hình ngôn ngữ chính là "thêm hư từ cho đúng ngữ pháp" (cùng tệp, dòng 43).
 
-**Thứ hai, ranh giới từ giữa hai ngôn ngữ không trùng nhau.** Cụm bốn tiếng "tên là gì"
+**Thứ hai, ranh giới từ giữa hai ngôn ngữ không trùng nhau.** Cụm ba tiếng "tên là gì"
 trong tiếng Việt tương ứng với đúng **một** ký hiệu VSL trong từ điển quốc gia, chứ không
-phải ba hay bốn ký hiệu ghép lại (mục `TEN_LA_GI` → nhãn "tên là gì", video `W03129N.mp4`
-— `training/preprocess/import_signconnect.py`, dòng 49). Tương tự, "đau bụng" là một ký
+phải ba ký hiệu ghép lại (mục `TEN_LA_GI` → nhãn "tên là gì", video `W03129N.mp4` —
+`training/preprocess/import_signconnect.py`, dòng 49; đối chiếu
+`docs/merge-notes/branch-c-sprint2.md`, dòng 29 và
+`apps/web/src/app/speak/SpeakTool.tsx`, dòng 65). Tương tự, "đau bụng" là một ký
 hiệu nguyên khối chứ không phải "đau" cộng "bụng". Chính vì vậy thuật toán dịch chiều
 ngược của hệ thống phải khớp cụm dài nhất trước (`dictionary/SignComposer.java`, dòng
 17-21) thay vì tách từng từ.
 
 **Thứ ba, có những khái niệm VSL diễn đạt bằng cơ chế phi từ vựng.** Ngôi thứ nhất "tôi"
-trong VSL được thể hiện bằng động tác **chỉ vào chính mình**, nên từ điển ký hiệu quốc gia
-không có mục từ vựng riêng cho nó. Đây không phải thiếu sót của kho dữ liệu mà là một đặc
-điểm ngôn ngữ học, phát hiện khi đối chiếu câu mẫu trình diễn với kho ký hiệu thật
+trong VSL được thể hiện bằng động tác **chỉ vào chính mình** chứ không bằng một ký hiệu từ
+vựng riêng [CẦN TRÍCH DẪN — tài liệu ngôn ngữ học về VSL]. Bằng chứng mà đồ án tự kiểm
+được chỉ ở mức dữ liệu: khi đối chiếu câu mẫu trình diễn với kho ký hiệu thật, mục `TOI`
+nằm trong số ít mục chưa có clip trong cơ sở dữ liệu của đồ án
 (`docs/merge-notes/branch-c-sprint2.md`, dòng 33-35; `apps/web/src/app/speak/SpeakTool.tsx`,
-dòng 59-61).
+dòng 59-61), và bộ từ vựng khởi đầu nhập từ kho quốc gia cũng không có mục rời cho "tôi" —
+chỉ có cụm `TOI_YEU_BAN` (`training/preprocess/import_signconnect.py`, dòng 24-55). Quan
+sát này *phù hợp với* đặc điểm ngôn ngữ học nêu trên nhưng chưa đủ để chứng minh nó: cũng
+không loại trừ khả năng kho dữ liệu đơn giản là còn thiếu. Hai ghi chú nội bộ nói trên còn
+chưa thống nhất từ thứ tư trong danh sách thiếu clip ("đau" so với "hôm nay"), cần rà lại
+trước khi đưa vào bản nộp.
 
 Ba tình huống trên cho thấy bài toán không thể quy về "nhận dạng cử chỉ rồi tra bảng": mọi
 khâu, từ định nghĩa nhãn đến cách ghép câu, đều phải tôn trọng việc VSL là một ngôn ngữ
@@ -62,8 +70,11 @@ ngữ cảnh toàn câu, không xử lý được ở mức từng nhãn rời.
 vùng. Bằng chứng nằm ngay trong cấu trúc kho từ điển quốc gia mà đồ án sử dụng: tên tệp
 video mang hậu tố `B`, `N`, `T` tương ứng biến thể miền Bắc, miền Nam, miền Trung
 (`training/preprocess/import_signconnect.py`, dòng 5 và hàm `preference` dòng 115-117).
-Đồ án chọn cố định một biến thể theo thứ tự ưu tiên B > không hậu tố > N > T; xử lý đa
-biến thể là hướng mở rộng, không nằm trong phạm vi.
+Ở nhánh nhập toàn kho (tuỳ chọn `--all`, dòng 141-145), đồ án chọn cố định một biến thể
+theo thứ tự ưu tiên B > không hậu tố > N > T; riêng bộ từ vựng khởi đầu 30 mục được chọn
+tay và gán cứng tên tệp (dòng 24-55) nên không đi qua quy tắc này — ví dụ `TEN_LA_GI` dùng
+`W03129N.mp4`, tức biến thể miền Nam. Xử lý đa biến thể là hướng mở rộng, không nằm trong
+phạm vi.
 
 **(d) Khoảng cách giữa môi trường huấn luyện và môi trường chạy thật.** Trình duyệt người
 dùng và máy trích đặc trưng lúc huấn luyện phải cho ra cùng một phân bố dữ liệu; nếu lệch,
@@ -84,7 +95,10 @@ khung hình/giây (`apps/web/src/lib/useVisionPipeline.ts`, dòng 23-24).
 - Chiều ngược lại: người nghe gõ hoặc nói tiếng Việt, hệ thống khớp từ điển và phát lần
   lượt clip ký hiệu quay sẵn; từ không có trong từ điển thì đánh vần bằng bảng chữ cái
   ngón tay và báo trung thực từ nào không dịch được.
-- Công cụ quản trị từ điển, thu mẫu dữ liệu và thống kê sử dụng.
+- Công cụ quản trị từ điển (thêm, sửa, xoá ký hiệu; quay clip bù cho từ còn thiếu) và
+  thống kê sử dụng. Riêng đường **thu mẫu huấn luyện tự quay** đã dừng: API phía backend
+  (module `dataset`) vẫn giữ, nhưng giao diện `/collect` đã rút gọn thành trang thông báo
+  (`apps/web/src/app/collect/CollectTool.tsx` dòng 7 và 13-16).
 
 **Hệ thống KHÔNG làm (ghi rõ để giới hạn kỳ vọng khi bảo vệ):**
 
@@ -100,28 +114,45 @@ khung hình/giây (`apps/web/src/lib/useVisionPipeline.ts`, dòng 23-24).
 ## 1.4. Đóng góp của đồ án
 
 1. **Hệ thống hai chiều chạy được đầu-cuối.** Mười trang giao diện trong
-   `apps/web/src/app/` (`/translate`, `/speak`, `/video`, `/dictionary`, `/collect`,
-   `/record`, `/admin`, `/stats`...) phủ cả chiều ký hiệu → tiếng nói lẫn chiều tiếng Việt
-   → ký hiệu.
+   `apps/web/src/app/` (`/translate`, `/speak`, `/video`, `/dictionary`, `/record`,
+   `/admin`, `/stats`...) phủ cả chiều ký hiệu → tiếng nói lẫn chiều tiếng Việt → ký hiệu.
+   Trong số đó `/collect` chỉ còn là route giữ lại để không hỏng liên kết cũ, không còn
+   là một chức năng đang chạy.
 
 2. **Lớp chuyển gloss → câu tiếng Việt có ba tầng phòng thủ và có số liệu đánh giá.**
-   `SentenceComposer.java` dùng prompt few-shot theo tiền lệ Spotter+GPT (arXiv 2403.10434),
-   xếp tầng cache → mô hình ngôn ngữ → ghép dự phòng từ nghĩa trong từ điển. Kết quả đánh
-   giá sinh tự động ở `docs/report/data/sentence-eval.md`: phủ nội dung 4/4, không bịa thêm
-   3/4, đúng dạng một câu 4/4, độ trễ gọi trung vị 2.920 ms trên bộ 4 chuỗi gloss.
+   `SentenceComposer.java` dùng prompt few-shot theo tiền lệ Spotter+GPT (arXiv 2403.10434)
+   [CẦN TRÍCH DẪN — tên tác giả, năm và nơi công bố của arXiv 2403.10434; trong kho mã,
+   mã số này mới chỉ xuất hiện ở hai ghi chú do chính người làm đồ án viết:
+   `SentenceComposer.java` dòng 24-26 và `PLAN.md` dòng 93], xếp tầng cache →
+   mô hình ngôn ngữ → ghép dự phòng từ nghĩa trong từ điển. Kết quả đánh giá sinh tự động
+   ở `docs/report/data/sentence-eval.md`: phủ nội dung 4/4, không bịa thêm 3/4, đúng dạng
+   một câu 4/4, độ trễ gọi trung vị 2.920 ms. Lưu ý trung thực: bộ ca thử
+   `training/eval/gloss_sequences.json` hiện có **30 chuỗi gloss**, mới chạy được **4 ca**
+   thì cạn hạn mức miễn phí của mô hình ngôn ngữ, nên các tỉ lệ trên tính trên **4/30 ca**
+   đã chạy — đây là phép đo dở dang, sẽ cập nhật ở Chương 4 sau khi chạy hết bộ. (Bảng
+   trong `sentence-eval.md` hiện ghi tổng số ca là 6 vì được sinh bởi một lượt chạy có
+   `--limit 6`; tuỳ chọn này khai báo ở `training/eval/sentence_eval.py` dòng 277 và cắt
+   danh sách ca ở dòng 287-289.)
 
 3. **Kiến trúc modular monolith có ranh giới được kiểm chứng bằng máy.** Năm module
    (`identity`, `dictionary`, `translation`, `dataset`, `analytics`) khai báo bằng
    `package-info.java`; bài kiểm thử `ModularityTests.java` thất bại nếu có import chéo
-   package nội bộ, đồng thời tự sinh 12 tệp sơ đồ và canvas kiến trúc trong
-   `docs/report/kien-truc/` — tài liệu kiến trúc không thể lệch khỏi mã nguồn.
+   package nội bộ (dòng 16-19), đồng thời tự sinh 12 tệp sơ đồ C4 và module canvas vào
+   `apps/core/target/spring-modulith-docs/` (dòng 21-24). Các tệp này được chép sang
+   `docs/report/kien-truc/` bằng một lệnh ghi ở `docs/report/README.md` dòng 34 để đưa vào
+   báo cáo — tài liệu kiến trúc do đó được sinh từ mã nguồn chứ không vẽ tay, tuy bước chép
+   là thủ công nên vẫn phải chạy lại sau mỗi lần đổi cấu trúc module.
 
 4. **Nhập và chuẩn hoá kho từ điển ký hiệu quốc gia.** Script
    `training/preprocess/import_signconnect.py` nhập kho QIPEDC (qipedc.moet.gov.vn, dự án
-   của Bộ Giáo dục và Đào tạo [CẦN TRÍCH DẪN — nguồn chính thức về dự án QIPEDC]) qua đúng
-   API công khai của hệ thống, có xử lý biến thể vùng miền, sinh gloss ASCII duy nhất và
-   chạy lại an toàn sau khi bị ngắt. Kết quả kiểm chứng trên đĩa: **3.318 tệp clip `.mp4`**
-   trong `storage/clips`.
+   của Bộ Giáo dục và Đào tạo [CẦN TRÍCH DẪN — nguồn chính thức về dự án QIPEDC]) thông qua
+   bản sao công khai `Lakeserl/SignConnect` trên HuggingFace (dòng 3-4 và hằng `HF_BASE`
+   dòng 20; bản sao này công bố 4.362 video, mức độ sai khác so với bản gốc chưa kiểm
+   chứng được), rồi ghi vào hệ thống qua đúng API quản trị của backend — đăng nhập lấy
+   token (dòng 21 và 136), tạo ký hiệu, tải clip kèm `Bearer` token (dòng 68-81) — thay vì
+   ghi thẳng vào cơ sở dữ liệu. Script có xử lý biến thể vùng miền, sinh gloss ASCII duy
+   nhất và chạy lại an toàn sau khi bị ngắt. Kết quả kiểm chứng trên đĩa: **3.318 tệp
+   clip `.mp4`** trong `storage/clips`.
 
 5. **Bộ huấn luyện tách bạch ba nhóm số liệu để không tự thổi phồng kết quả.**
    `training/model/train.py` báo cáo riêng (i) top-1/top-5 trên mẫu thật, (ii) độ nhạy với
@@ -130,8 +161,10 @@ khung hình/giây (`apps/web/src/lib/useVisionPipeline.ts`, dòng 23-24).
    tập huấn luyện**, không trộn vào tập kiểm tra.
 
 6. **Hồ sơ lỗi và quy trình review đối kháng.** Lỗi bắt được cùng nguyên nhân gốc và bản vá
-   được ghi ở Phụ lục A, kèm bộ kiểm thử hồi quy: 9 tệp kiểm thử Java chứa 17 phương thức
-   `@Test`, và 27 khẳng định kiểm thử đầu-cuối (21 ở `tests/e2e/infrastructure.test.js`,
+   được ghi ở Phụ lục A, kèm bộ kiểm thử hồi quy: 7 lớp kiểm thử Java chứa 17 phương thức
+   `@Test` (cùng 2 tệp cấu hình hạ tầng test không chứa `@Test` là
+   `TestCoreApplication.java` và `TestcontainersConfiguration.java`), và 27 khẳng định
+   kiểm thử đầu-cuối (21 ở `tests/e2e/infrastructure.test.js`,
    6 ở `tests/e2e/sentence.test.js`).
 
 **Những gì chưa đo được, khai báo trung thực:** tại thời điểm viết chương này kho mã **chưa

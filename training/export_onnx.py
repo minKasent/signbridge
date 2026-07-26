@@ -10,7 +10,9 @@ cửa sổ, hoặc chỉ đơn giản là muốn kiểm tra lại file .onnx đ�
 
 Vì sao phải kiểm chứng chứ không chỉ xuất: torch.onnx.export gần như KHÔNG BAO GIỜ
 báo lỗi. Nó vẫn sinh ra file .onnx khi đồ thị đã bị "nướng cứng" sai (xem ghi chú về
-trục động ở hàm verify_onnx). Một file .onnx sai vẫn nạp được, vẫn trả về số, chỉ là
+trục động ở hàm export_onnx, chỗ khai báo dynamic_axes). Kiểm chứng bắt được đúng loại
+hỏng đó vì có ca ép trục batch và ca ép trục chuỗi (xem cases trong main).
+Một file .onnx sai vẫn nạp được, vẫn trả về số, chỉ là
 số sai — và ở tầng trên (apps/ml → Spring → LLM) không ai phát hiện ra. Vì vậy script
 này chạy lại model bằng ĐÚNG runtime dùng lúc serve (onnxruntime, xem
 apps/ml/requirements.txt dòng 5) rồi so từng phần tử với PyTorch; lệch quá ngưỡng thì
@@ -28,9 +30,14 @@ Ghi chú trung thực về số liệu:
   (VSL400 còn đang chờ duyệt quyền truy cập Zenodo).
 - Sai lệch PyTorch ↔ onnxruntime đo được trên môi trường apps/ml/.venv của máy này
   (torch 2.13.0+cpu, onnxruntime 1.28.0, onnx 1.22.0, numpy 2.5.1; đo 27/07/2026 trên
-  một model TRỌNG SỐ NGẪU NHIÊN 6 lớp, d_model=192, 4 lớp encoder) cao nhất là
-  8,9e-8 qua 4 ca kiểm — tức nhỏ hơn ngưỡng 1e-4 khoảng ba bậc độ lớn. Con số này chỉ
-  chứng minh đường xuất đúng, KHÔNG nói gì về accuracy.
+  model TRỌNG SỐ NGẪU NHIÊN 6 lớp, d_model=192, 4 lớp encoder, 4 đầu attention) nằm ở
+  MỨC 1e-7 qua 4 ca kiểm — tức nhỏ hơn ngưỡng 1e-4 khoảng ba bậc độ lớn. Cố ý KHÔNG ghi
+  một con số cụ thể ở đây và không được chép con số nào từ dòng này vào báo cáo: trọng
+  số là ngẫu nhiên và seed dựng trọng số không được lưu ở đâu trong repo (VERIFY_SEED
+  = 42 chỉ ghim ĐẦU VÀO của bước kiểm chứng, không ghim trọng số), nên mỗi lượt chạy
+  cho một con số khác tuy cùng bậc độ lớn. Luận
+  điểm cần chứng minh là ĐƯỜNG XUẤT ĐÚNG chứ không phải một giá trị cụ thể. Bậc độ lớn
+  này cũng KHÔNG nói gì về accuracy.
   Sai lệch trên CHECKPOINT THẬT: [CẦN SỐ LIỆU] — script này in ra con số đó mỗi lần
   chạy, lấy đúng dòng in để đưa vào báo cáo.
 - Thời gian suy luận một cửa sổ bằng onnxruntime trên máy demo: [CẦN SỐ LIỆU] — chưa
@@ -62,7 +69,7 @@ NO_SIGN_LABEL = "NO_SIGN"  # train.py dòng 220: labels + ["NO_SIGN"], LUÔN là
 # --- Mặc định lấy từ code hiện hành, không phải trí nhớ ----------------------
 DEFAULT_WINDOW = 32  # train.py dòng 93 (--window) và LandmarkWebSocketHandler.java dòng 40
 FPS_HINT = 25  # train.py dòng 35; khớp TARGET_FPS trong useVisionPipeline.ts dòng 24
-DEFAULT_NUM_HEADS = 4  # SignTransformer.__init__ (model.py dòng 24)
+DEFAULT_NUM_HEADS = 4  # SignTransformer.__init__ (model.py dòng 23)
 VERIFY_SEED = 42  # cùng seed với train.py dòng 108 — kiểm chứng lặp lại được
 
 TRAINING_DIR = Path(__file__).resolve().parent
@@ -328,8 +335,13 @@ def verify_onnx(path: Path, wrapper, cases: list[tuple[int, int, bool]], input_d
     for batch, seq, zeros in cases:
         name = f"batch={batch}, T={seq}" + (" (toàn 0)" if zeros else "")
         if zeros:
-            # Cửa sổ toàn 0 = không có tay trong khung. Đây là đầu vào THẬT SỰ hay gặp
-            # lúc chạy (apps/ml/app/main.py dòng 102) nên phải nằm trong bộ kiểm.
+            # Cửa sổ toàn 0 = KHÔNG phát hiện được cả tay lẫn thân trên (che camera,
+            # không có ai trong khung). apps/web/src/lib/landmarks.ts dòng 64 khởi tạo
+            # vector 144 chiều toàn 0 rồi chỉ điền ô nào phát hiện được: tay vào ô
+            # 0-125 (dòng 65-73), thân trên vào ô 126-143 (dòng 74-81).
+            # Phạm vi của ca này: nó KHÔNG phủ trạng thái idle phổ biến hơn là người
+            # vẫn trong khung nhưng hạ tay xuống — khi đó khối pose vẫn khác 0 nên
+            # frame không hề toàn 0. Bộ kiểm hiện chưa có ca đó.
             x = torch.zeros(batch, seq, input_dims)
         else:
             x = torch.rand(batch, seq, input_dims, generator=gen)
@@ -482,7 +494,8 @@ def main() -> int:
 
     print(f"[4/5] Kiểm chứng bằng onnxruntime (ngưỡng {args.tol:.0e})")
     # Ca 1 mô phỏng đúng cách apps/ml gọi thật (main.py dòng 52 thêm chiều batch = 1).
-    # Ca 2 ép trục batch. Ca 3 là cửa sổ trống tay. Ca 4 ép trục chuỗi.
+    # Ca 2 ép trục batch. Ca 3 là cửa sổ TOÀN 0 (không phát hiện được cả tay lẫn thân
+    # trên — che camera / không có ai trong khung). Ca 4 ép trục chuỗi.
     cases = [(1, seq_len, False), (4, seq_len, False), (1, seq_len, True)]
     seq_case = None
     if dynamic_seq and seq_len > 8:

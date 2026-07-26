@@ -12,19 +12,23 @@ Chương này mô tả kiến trúc SignBridge ở mức đủ để dựng lạ
 | `apps/web` | Next.js 16.2.12, React 19.2.4 | 3000 | Giao diện, webcam, **trích đặc trưng MediaPipe trong trình duyệt**, phát âm thanh |
 | `apps/core` | Spring Boot 4.1.0, Spring Modulith 2.1.0, Java 21 | 8080 | Modular monolith 5 module: WebSocket phiên dịch, REST từ điển/thu mẫu/thống kê, xác thực |
 | `apps/ml` | FastAPI (>=0.115), uvicorn, onnxruntime (>=1.28) | 8000 | Dịch vụ mỏng: nhận mảng toạ độ, trả nhãn |
-| PostgreSQL | `postgres:16-alpine` | 5432 | `signs`, `users`, `sample_records`, `gloss_usages` |
+| PostgreSQL | `postgres:16-alpine` | 5432 | `signs`, `users`, `dataset_samples`, `gloss_usages` |
 
 Kiểm chứng phiên bản: `apps/core/pom.xml` (dòng 8, 30, 31), `apps/web/package.json` (dòng 12,
 17, 20-21), `apps/ml/requirements.txt`, `docker-compose.yml`. Kiểm chứng cổng:
 `apps/core/src/main/resources/application.yml`, `docker-compose.yml`,
-`translation/WebSocketConfig.java` dòng 22.
+`translation/WebSocketConfig.java` dòng 22. Tên bảng lấy từ chú thích `@Table` của bốn entity
+chứ không suy từ tên lớp Java: `dictionary/Sign.java` dòng 23 (`signs`), `identity/User.java`
+dòng 21 (`users`), `dataset/SampleRecord.java` dòng 23 (`dataset_samples` — khác tên lớp),
+`analytics/GlossUsage.java` dòng 24 (`gloss_usages`).
 
 ```mermaid
 flowchart LR
     subgraph B["Trình duyệt — apps/web :3000"]
         CAM["Webcam 640x480"] --> MP["MediaPipe Tasks 0.10.35<br/>Hand + Pose Landmarker<br/>tự host WASM và .task"]
         MP --> VEC["Vector 144 chiều<br/>ghim 25 fps, gom lô 5 frame"]
-        TTS["TTS: mp3 neural sinh sẵn<br/>→ lùi về SpeechSynthesis vi-VN"]
+        TTS["TTS: SpeechSynthesis vi-VN<br/>(đường đang chạy)"]
+        NTTS["mp3 neural sinh sẵn<br/>đã có, CHƯA nối vào giao diện"]
         PLAY["Trình phát clip QIPEDC"]
     end
     subgraph C["apps/core — Spring Modulith :8080"]
@@ -44,6 +48,7 @@ flowchart LR
     WS --> LLM
     LLM -- "HTTPS" --> GEM
     LLM -- "câu tiếng Việt" --> TTS
+    NTTS -. "chưa tích hợp" .-> TTS
     REST --> DB
     WS --> DB
     REST -- "GET /api/signs, /clips/**" --> PLAY
@@ -73,7 +78,10 @@ Năm module khai báo bằng năm tệp `package-info.java` dưới
 | `analytics` | Lắng nghe `GlossRecognized`, ghi `gloss_usages`, trả số liệu gộp | `GlossUsage` |
 
 Đồ thị dưới đây **không vẽ tay** mà chép từ `docs/report/kien-truc/components.puml`
-dòng 28-30, tệp do `ModularityTests.generateDocumentation()` sinh ra từ mã nguồn:
+dòng 28-30. Tệp đó do `ModularityTests.generateDocumentation()` sinh ra từ mã nguồn vào
+`apps/core/target/spring-modulith-docs/` (javadoc `ModularityTests.java` dòng 9), rồi được chép
+sang `docs/report/kien-truc/` bằng lệnh `cp` ghi ở `docs/report/README.md` dòng 34 — cả hai thư
+mục hiện có cùng 12 tệp `.puml`/`.adoc`:
 
 ```mermaid
 flowchart TB
@@ -93,9 +101,20 @@ bình thường. Hai cấu hình đi kèm tại `application.yml` dòng 26-33: `
 để bảng `event_publication` không phình vô hạn (mỗi gloss sinh một dòng, ngay trên hot path),
 và `republish-outstanding-events-on-restart: true` để sự kiện lỗi giữa chừng được phát lại.
 
-**Bề mặt công khai xuyên module rất hẹp:** chỉ interface `dictionary.SignCatalog`
-(`existsByGloss`, `meaningOf`) và record `translation.GlossRecognized(sessionId, gloss,
-confidence, at)`. Mọi lớp còn lại, kể cả controller và repository, đều package-private.
+**Bề mặt thực sự được gọi xuyên module chỉ có hai kiểu.** Grep `import vn.signbridge.` liên
+gói trong `apps/core/src/main/java/vn/signbridge/` cho đúng ba cạnh: `dictionary.SignCatalog`
+(`existsByGloss`, `meaningOf`) được `dataset/DatasetController.java` dòng 25 và
+`translation/SentenceComposer.java` dòng 19 import; sự kiện
+`translation.GlossRecognized(sessionId, gloss, confidence, at)` được
+`analytics/GlossStatsListener.java` dòng 12 import. `identity` không xuất hiện ở cả hai chiều.
+Controller và repository của cả năm module đều package-private (khai báo `class
+SignController`, `interface SignRepository`… không kèm `public`). Cần nói rõ để không tô hồng:
+ngoài hai kiểu trên, kho mã còn bảy kiểu khai báo `public` — `Sign`, `SignComposer` cùng record
+lồng `ComposeResult`, `User`, `Role`, `SampleRecord` và lớp khởi động `CoreApplication` (đếm
+bằng `grep -rn "public \(class\|record\|interface\|enum\)"`, tổng cộng chín kết quả trong đó
+hai kiểu là bề mặt xuyên module) — nên theo cách Spring Modulith tính, bề
+mặt *lộ ra* của module `dictionary` gồm cả `SignComposer` và `Sign`; điều kiểm chứng được là
+hiện **không module nào import** chúng.
 `identity` không có cạnh phụ thuộc nào nên bộ sinh sơ đồ bỏ qua và `components.puml` chỉ vẽ
 bốn khối — cần nêu rõ để tránh hiểu nhầm hệ thống chỉ có bốn module. Cấu hình bảo mật
 (`vn/signbridge/SecurityConfig.java` dòng 20) nằm ở gói gốc, tự chú thích là "hạ tầng — không
@@ -103,8 +122,10 @@ thuộc module nào".
 
 **Ranh giới trở thành thứ CI kiểm được.** `ModularityTests.java` chỉ có hai phương thức:
 `modules.verify()` làm bản dựng **thất bại** nếu một module import lớp nội bộ của module khác,
-và `new Documenter(modules).writeDocumentation()` sinh sơ đồ C4 cùng module canvas. Sơ đồ
-trong chương này vì thế không thể lệch với mã nguồn quá một lần chạy `mvn test`.
+và `new Documenter(modules).writeDocumentation()` sinh sơ đồ C4 cùng module canvas. Nói chính
+xác thì chỉ có **bước sinh** là tự động: sơ đồ luôn khớp mã nguồn ngay sau một lần chạy
+`mvn test`, nhưng bước đưa vào báo cáo là lệnh `cp` chạy tay, nên tài liệu vẫn có thể lệch nếu
+sửa mã mà quên chép lại. Đây là hạn chế của quy trình, không phải của công cụ.
 
 **Vì sao không microservices.** Với đồ án một người, chia microservices là đổi một vấn đề dễ
 (giữ kỷ luật gói) lấy nhiều vấn đề khó: điều phối nhiều tiến trình, nhất quán dữ liệu phân
@@ -117,8 +138,13 @@ duy nhất là `apps/ml`, vì PyTorch và ONNX Runtime chỉ có trong hệ sinh
 
 ## 3.3. Luồng chiều thuận: ký hiệu → tiếng nói
 
-**Thu hình.** `useVisionPipeline.ts` gọi `getUserMedia({ video: { width: 640, height: 480 } })`
-(dòng 62-63) trong vòng lặp `requestAnimationFrame`. `landmarks.ts` tạo `HandLandmarker`
+**Thu hình.** `useVisionPipeline.ts` mở webcam **một lần** ở phần khởi tạo của effect bằng
+`getUserMedia({ video: { width: 640, height: 480 } })` (dòng 62-64), hoàn toàn nằm ngoài vòng
+lặp. Vòng lặp `requestAnimationFrame` được định nghĩa ở dòng 92-132 và khởi động ở dòng 133;
+thân vòng lặp thoát sớm hai lần trước khi làm việc nặng: bỏ qua khi khung hình chưa đổi
+(`video.currentTime === lastVideoTime`, dòng 95) và khi chưa tới nhịp phát (`now - lastEmit
+< 1000 / TARGET_FPS`, dòng 102). Nhờ vậy `detectForVideo` cho hand + pose và bước dựng vector
+qua `buildFrame` chỉ chạy khoảng `TARGET_FPS` lần mỗi giây chứ không theo nhịp màn hình. `landmarks.ts` tạo `HandLandmarker`
 (`numHands: 2`) và `PoseLandmarker` (`numPoses: 1`) ở `runningMode: "VIDEO"`, thử delegate GPU
 rồi tự lùi về CPU (dòng 30-54). WASM và `.task` tự host trong `apps/web/public/`.
 
@@ -140,7 +166,7 @@ giảm khoảng ba lần kích thước gói tin). Con số 144 bị ràng buộ
 Nhịp trích đặc trưng **ghim ở 25 fps** (`useVisionPipeline.ts` dòng 24, 102) chứ không theo
 nhịp màn hình: màn hình 120 Hz sinh chuỗi frame nhanh gấp nhiều lần video huấn luyện, khiến
 model đúng vẫn cho kết quả sai. Cùng con số ghi vào `labels.json` dưới khoá `fps_hint`
-(`train.py` dòng 220).
+(hằng `FPS_HINT = 25` ở `train.py` dòng 35, ghi vào JSON ở dòng 221).
 
 **Truyền tải.** `TranslateDemo.tsx` gom đủ `FRAME_BATCH = 5` frame mới gửi (dòng 14, 50-52);
 giao thức JSON thô khai báo tại `LandmarkWebSocketHandler.java` dòng 23-26.
@@ -151,10 +177,11 @@ giao thức JSON thô khai báo tại `LandmarkWebSocketHandler.java` dòng 23-2
 sổ từ **đầu** đệm rồi xoá `STRIDE` frame, lặp tới khi không đủ frame (dòng 106-117) — chú
 thích dòng 28-30 giải thích vì sao xử lý một cửa sổ mỗi tin nhắn là sai. Vì `/ws/translate`
 công khai, mọi ràng buộc đầu vào phải kiểm tại đây: lô quá lớn hoặc frame sai số chiều làm
-phiên bị đóng với mã 1008 `POLICY_VIOLATION`.
+phiên bị đóng với mã 1008 `POLICY_VIOLATION` (dòng 160).
 
-**Suy luận.** `MlClient` gửi `POST /infer`, timeout kết nối 2 giây, timeout đọc 3 giây; lỗi
-trả `Optional.empty()` và cửa sổ bị bỏ qua thay vì làm sập phiên.
+**Suy luận.** `MlClient` gửi `POST /infer` (dòng 49), timeout kết nối 2 giây và timeout đọc
+3 giây (hằng `CONNECT_TIMEOUT`, `READ_TIMEOUT` dòng 24-25); lỗi trả `Optional.empty()` và cửa
+sổ bị bỏ qua thay vì làm sập phiên.
 
 **Lọc và phát hiện nghỉ tay** (`TranslationService.java` dòng 34-41):
 `CONFIDENCE_THRESHOLD = 0.6`, `IDLE_WINDOWS_TO_FINALIZE = 3`, `MAX_GLOSSES_PER_SENTENCE = 20`.
@@ -165,7 +192,7 @@ liền kề. Ba cửa sổ liên tiếp cho `NO_SIGN` hoặc dưới ngưỡng n
 nối Hikari suốt lời gọi HTTP sang dịch vụ ML (dòng 26-28).
 
 **Phát âm — hai lớp.** Lớp nền là `speech.ts`: `SpeechSynthesisUtterance`, `lang = "vi-VN"`,
-`rate = 0.95`. Lớp trên là `neural-tts.ts`: tra câu trong `/tts/manifest.json` rồi phát mp3
+`rate = 0.95` (dòng 13-14). Lớp trên là `neural-tts.ts`: tra câu trong `/tts/manifest.json` rồi phát mp3
 giọng `vi-VN-HoaiMyNeural` sinh sẵn bởi `tools/tts/pregenerate_tts.py`; thiếu tệp hoặc trình
 duyệt chặn tự phát thì lùi về `speakVietnamese` (dòng 42-65). Kho hiện có **33 tệp mp3** trong
 `apps/web/public/tts/`. Lý do (dòng 6-9): `speechSynthesis` đọc tiếng Việt rất máy móc và
@@ -237,15 +264,31 @@ khớp ở client mới giữ được đúng **thứ tự** cả câu (dòng 33
 dòng 138-141: bảng cụm **chỉ nhận ký hiệu có `clipUrl`** — nhận cả từ thiếu clip thì nhánh
 đánh vần không bao giờ chạy và trình phát đứng im.
 
-Nguồn clip là **kho từ điển ký hiệu quốc gia QIPEDC** (`qipedc.moet.gov.vn`, dự án của Bộ Giáo
-dục và Đào tạo), lấy qua tập `Lakeserl/SignConnect` trên Hugging Face; docstring
+Nguồn clip là **kho từ điển ký hiệu quốc gia QIPEDC** (`qipedc.moet.gov.vn`, theo docstring
+`training/preprocess/import_signconnect.py` dòng 4 là dự án của Bộ Giáo dục và Đào tạo cùng
+World Bank [CẦN TRÍCH DẪN — nguồn chính thức về dự án QIPEDC]), lấy qua tập
+`Lakeserl/SignConnect` trên Hugging Face; docstring
 `training/preprocess/import_signconnect.py` dòng 3-5 ghi nguồn có 4.362 video, hậu tố B/N/T là
-biến thể vùng miền Bắc/Nam/Trung. Script chuẩn hoá gloss sang ASCII, ưu tiên biến thể miền
-Bắc, đi qua **API thật** của backend. Kiểm đếm trên đĩa: **3.318 tệp `.mp4`**.
+biến thể vùng miền Bắc/Nam/Trung. Script chuẩn hoá gloss sang ASCII và đi qua **API quản trị
+thật** của backend (đăng nhập admin, tạo ký hiệu, tải clip — docstring dòng 7-8) thay vì ghi
+thẳng vào cơ sở dữ liệu. Quy tắc ưu tiên biến thể B > không hậu tố > N > T chỉ chạy ở nhánh
+nhập toàn kho `--all` (hàm `preference`, dòng 115-117 và 123); bộ 30 mục khởi đầu được chọn tay
+với tên tệp gán cứng (dòng 24-54) nên có mục dùng biến thể khác, ví dụ `TEN_LA_GI` dùng
+`W03129N.mp4` — hậu tố N, tức biến thể miền Nam. Kiểm đếm trên đĩa: **3.318 tệp `.mp4`**.
 
-Phát hiện ngôn ngữ học đáng ghi nhận (`SpeakTool.tsx` dòng 59-61): từ điển quốc gia không có
-ký hiệu rời cho "tôi", "cảm ơn", "bác sĩ", "hôm nay" — riêng "tôi" là đặc điểm của VSL, ngôi
-thứ nhất diễn đạt bằng động tác chỉ vào mình chứ không có ký hiệu từ vựng.
+Một quan sát về dữ liệu, tách bạch với phần diễn giải. **Dữ kiện kiểm chứng được:** bộ từ vựng
+30 mục lấy từ QIPEDC (`training/preprocess/import_signconnect.py` dòng 24-54) không có mục nào
+cho "tôi", "cảm ơn", "bác sĩ", "hôm nay" (chỉ có cụm `TOI_YEU_BAN`), và bốn gloss
+`TOI / CAM_ON / BAC_SI / DAU` phải tự thêm chứ không nhập được từ kho
+(`training/eval/gloss_sequences.json` dòng 3). Sau lần nhập toàn kho (~3.300 từ), thông điệp
+commit `17e0664` ghi nhận từ điển quốc gia không có "hôm nay", "ngày mai", "hôm qua", "cảm ơn",
+"bác sĩ" — danh sách này **không** nhắc tới "tôi", và kho mã cũng không lưu bản kết xuất danh
+mục từ điển để đối chiếu tại chỗ, nên mức chắc chắn cho riêng "tôi" thấp hơn ba từ còn lại.
+**Phần diễn giải:** một cách giải thích khả dĩ cho trường hợp "tôi" là VSL diễn đạt ngôi thứ
+nhất bằng động tác chỉ vào chính mình chứ không bằng một mục từ vựng riêng [CẦN TRÍCH DẪN —
+tài liệu ngôn ngữ học về VSL]; nguồn duy nhất hiện có trong kho mã là chú thích do người làm đồ
+án tự viết (`SpeakTool.tsx` dòng 59-61). Cũng không loại trừ khả năng đơn giản là kho dữ liệu
+còn thiếu, nên đây được ghi là giả thuyết chứ không phải kết luận.
 
 ---
 
@@ -284,10 +327,16 @@ ngày là vô ích. Cùng phản hồi đó cho thấy bí danh `gemini-flash-la
 biện pháp trọng tâm là mồi sẵn cache cho các chuỗi gloss dùng khi demo (chưa cài đặt).
 
 Chất lượng khâu này đo bằng `training/eval/sentence_eval.py`, kết quả sinh tự động vào
-`docs/report/data/sentence-eval.md`: bộ kiểm thử 6 chuỗi gloss nhưng **mới chạy được 4/6 ca**
-vì cạn hạn mức; trên 4 ca đó, phủ nội dung 4/4, không bịa thêm 3/4, đúng dạng một câu 4/4; độ
-trễ trung vị 2.920 ms (min 2.432 ms, max 3.433 ms, đo qua Internet). Cỡ mẫu này quá nhỏ để kết
-luận thống kê — bàn kỹ ở Chương 4.
+`docs/report/data/sentence-eval.md`. Bộ kiểm thử có **30 chuỗi gloss**
+(`training/eval/gloss_sequences.json`, khoá `cases` chứa đúng 30 mục id 1-30, chia năm nhóm
+A-E) nhưng **mới chạy được 4/30 ca** vì cạn hạn mức — phép đo đang dở dang, mới phủ khoảng 13%
+bộ ca. Trên 4 ca đã chạy: phủ nội dung 4/4, không bịa thêm 3/4, đúng dạng một câu 4/4; độ trễ
+trung vị 2.920 ms (min 2.432 ms, max 3.433 ms, đo qua Internet). Lưu ý một điểm không khớp cần
+nói trước: bảng trong `sentence-eval.md` hiện ghi "6 chuỗi gloss" và "4/6 ca" vì đó là sản phẩm
+của một lần chạy kèm tuỳ chọn `--limit 6` (khai báo ở `sentence_eval.py` dòng 277, cắt danh
+sách ca ở dòng 288-289, rồi ghi `tong_ca=len(cases)` ở dòng 352); mẫu số đúng của bộ ca thử vẫn
+là 30. Script cộng dồn được qua nhiều ngày (chú thích dòng 291-292), nên con số này sẽ được
+chạy lại đầy đủ và cập nhật ở Chương 4. Cỡ mẫu 4 ca quá nhỏ để kết luận thống kê.
 
 ---
 
@@ -318,10 +367,11 @@ diện liên tục là biết lúc nào **không có** ký hiệu nào cả.
 1. **Lớp thứ (C+1):** `num_classes = len(labels) + 1` (`train.py` dòng 126), nhãn `NO_SIGN` nối
    vào cuối danh sách (`dataset.py` dòng 80).
 2. **Tổng hợp mẫu từ đoạn liên tục:** `_boundary_runs` chỉ lấy **run liên tục** frame không-tay
-   ở đầu và cuối video, `MIN_RUN = 4` (`dataset.py` dòng 33, 52-60); pool lấy ngẫu nhiên có
+   ở đầu và cuối video, `MIN_RUN = 4` (`dataset.py` dòng 33, 52-62); pool lấy ngẫu nhiên có
    seed (`seed = 42`, `no_sign_pool_size = 400`) trên toàn bộ tập mẫu chứ không lấy "N tệp đầu
-   tiên" theo thứ tự hệ thống tệp. Docstring dòng 13: lấy frame rời rạc giữa video hay ghép
-   độc lập đều tạo chuỗi pose nhảy loạn.
+   tiên" theo thứ tự hệ thống tệp. Docstring dòng 14-15 nêu rõ hai cách làm bị loại và lý do:
+   không lấy frame rời rạc giữa video (mất dấu tracking) và không ghép i.i.d. (pose nhảy loạn,
+   model học sai đặc trưng).
 3. **Đánh giá tách bạch:** mẫu NO_SIGN tổng hợp chỉ trộn vào tập **train**, loader val/test
    không nhận (`train.py` dòng 112-120); NO_SIGN recall đo riêng trên batch idle seed cứng.
    Trộn chung sẽ thổi phồng top-1 bằng một lớp quá dễ.
@@ -329,7 +379,7 @@ diện liên tục là biết lúc nào **không có** ký hiệu nào cả.
    diện", tăng `idleWindows`; đủ 3 lần thì chốt câu (`TranslationService.java` dòng 68-78).
 
 `train.py` còn đo **streaming top-1**: trượt cửa sổ 32 với `SERVE_STRIDE = 8` trên cả chuỗi rồi
-vote đa số các cửa sổ không phải NO_SIGN (dòng 34, 62-77). Hằng số 8 được chú thích thẳng là
+vote đa số các cửa sổ không phải NO_SIGN (dòng 34, 62-83). Hằng số 8 được chú thích thẳng là
 "khớp `LandmarkWebSocketHandler` bên Spring", nên chỉ số này mô phỏng đúng cách hệ thống được
 phục vụ thật và trung thực hơn hai nhóm còn lại.
 
@@ -337,7 +387,7 @@ phục vụ thật và trung thực hơn hai nhóm còn lại.
 (`model.py` dòng 64-72). Export không ghim opset (`train.py` dòng 212-217) vì môi trường phục
 vụ chạy `onnxruntime >= 1.28`; `dynamic_axes` chỉ mở chiều batch. Sản phẩm gồm
 `sign_model.onnx` và `labels.json` chứa `{labels, window: 32, dims: 144, fps_hint: 25,
-val_top1, test_top1, test_streaming_top1, test_no_sign_recall, run}` (dòng 219-223), chép vào
+val_top1, test_top1, test_streaming_top1, test_no_sign_recall, run}` (dòng 219-224), chép vào
 `apps/ml/model/` là xong.
 
 **Chế độ kép của `apps/ml`.** `main.py` tự chọn lúc khởi động (dòng 58-63): đủ hai tệp trên thì
@@ -346,8 +396,12 @@ TOI, BAN, BAC_SI, DAU, KHAM_BENH, GIUP_DO`, frame toàn 0 luôn cho `NO_SIGN`. �
 **contract `/infer` không đổi giữa hai chế độ**, nên Spring core không cần biết bên kia là
 model thật hay stub. Ở chế độ model thật, `/infer` từ chối bằng HTTP 422 nếu số frame khác
 `window` (dòng 48-51) — `ExportWrapper` đã bỏ mask với tiền đề "luôn nhận đủ window frame" nên
-đệm 0 âm thầm sẽ cho kết quả vô nghĩa mà không ai biết; `/health` công bố `window` để Spring
-đối chiếu contract.
+đệm 0 âm thầm sẽ cho kết quả vô nghĩa mà không ai biết; `/health` công bố thêm khoá `window`
+(dòng 76-84) để Spring **có thể** đối chiếu contract lúc khởi động. Phải nói rõ đây mới là khả
+năng bỏ ngỏ chứ không phải cơ chế đang chạy: chú thích ở `main.py` dòng 82 viết đúng chữ "có
+thể", và phía Spring hiện chưa có lời gọi nào tới `/health` của dịch vụ ML — `MlClient.java`
+chỉ có duy nhất `.uri("/infer")` (dòng 49). Ràng buộc thật sự đang bảo vệ hệ thống vì thế là
+HTTP 422 phía ML, không phải phép đối chiếu lúc khởi động.
 
 **Trạng thái hiện tại: `[CẦN SỐ LIỆU]`.** Kho mã chưa có `apps/ml/model/`, chưa có
 `labels.json`, không có con số độ chính xác nào; `docs/report/README.md` dòng 41-42 xác nhận
@@ -379,7 +433,12 @@ Bốn quyết định đáng nói:
 - **`/error` phải mở** — đây là dispatch nội bộ của Spring MVC khi controller trả 4xx/5xx.
   Không đưa vào `permitAll` thì mọi lỗi kiểm tra dữ liệu bị filter chain biến thành 401, che
   mất nguyên nhân thật (chú thích dòng 39-41: lỗi này tìm ra qua kiểm thử E2E).
-- **`/actuator/**` chỉ ADMIN** — endpoint `modulith`, `info`, `env` phơi bày cấu trúc nội bộ.
+- **`/actuator/**` chỉ ADMIN** — danh sách endpoint được phơi ra web đúng bằng
+  `health,info,modulith` (`application.yml` dòng 43-47). `modulith` và `info` lộ cấu trúc nội bộ nên chỉ
+  ADMIN xem được, riêng `/actuator/health` để công khai cho trang trạng thái (dòng 41 của
+  `SecurityConfig.java`). Chú thích ở `SecurityConfig.java` dòng 42-43 còn liệt kê cả `env` là
+  đã lạc hậu so với cấu hình: endpoint này không nằm trong danh sách phơi bày nên trả 404 kể
+  cả khi đăng nhập bằng ADMIN.
 - **Đăng ký công khai luôn chỉ cấp vai USER.** Quy ước "người đăng ký đầu tiên là admin" đã bị
   loại bỏ; ADMIN chỉ đến từ bootstrap cấu hình, và bootstrap không tự nâng quyền tài khoản đã
   tồn tại (`identity/AuthController.java`, `identity/AdminBootstrap.java`).
@@ -403,10 +462,16 @@ cho WebSocket (`WebSocketConfig.java` dòng 22).
 - **Chưa vote nhiều cửa sổ trước khi chốt gloss**: hiện chỉ chặn gloss lặp liền kề
   (`TranslationService.java` dòng 81-83); vote đa số mới có ở khâu đánh giá ngoại tuyến.
 - **Giọng neural đã có nhưng chưa nối vào giao diện**: `neural-tts.ts` và 33 tệp mp3 đã sẵn
-  sàng, song hai trang `/translate` và `/video` vẫn gọi thẳng `speakVietnamese`.
+  sàng, song hai trang `/translate` và `/video` vẫn gọi thẳng `speakVietnamese`; sơ đồ 3.1 vẽ
+  nhánh này bằng nét đứt cho đúng hiện trạng.
+- **Contract cửa sổ chưa được đối chiếu tự động**: dịch vụ ML công bố `window` ở `/health`
+  nhưng `MlClient` phía Spring mới chỉ gọi `/infer` (dòng 49), nên sai lệch cấu hình chỉ bị bắt
+  lúc chạy bằng HTTP 422 chứ không bị bắt lúc khởi động.
 - **Hạn mức LLM miễn phí 20 lượt/ngày** là rủi ro trực tiếp cho buổi bảo vệ; hệ thống không
   chết nhờ lớp phòng thủ thứ ba, nhưng đúng phần "LLM ghép câu tự nhiên" sẽ không chứng minh
   được nếu cạn quota (`docs/report/data/rui-ro-quota-llm.md`).
 - **Một số chú thích trong mã đã lạc hậu** — `dictionary/package-info.java` còn ghi clip "lưu
   trên MinIO", trong khi MinIO đã bị loại khỏi `docker-compose.yml` (kho community bị lưu trữ
-  tháng 04/2026) và clip thực tế nằm trên filesystem (`ClipStorage.java` dòng 17-18).
+  tháng 04/2026) và clip thực tế nằm trên filesystem (`ClipStorage.java` dòng 17-18);
+  `SecurityConfig.java` dòng 42-43 còn kể `env` trong nhóm actuator bị chặn, trong khi endpoint
+  này không hề được phơi ra web.

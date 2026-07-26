@@ -25,19 +25,27 @@ hệ là PGS.TS. Nguyễn Phi Lê, tác giả thứ nhất là Đinh Nguyễn S�
 
 **Dùng được gì.** Đây là lựa chọn dữ liệu chính trong kế hoạch: tập con 200 nhãn, view chính
 diện, dùng nguyên bộ split `train/val/test_1_200_center_ord1.csv` (khoảng 5.900 video) để
-giữ tính so sánh với bài báo gốc (`docs/EMAIL-MULTIVSL.md:32-33`). Đáng chú ý về mặt đóng
-góp: baseline chính thức của bài báo chạy trực tiếp trên video (ví dụ I3D), **không** phải
-trên landmark, nên dựng baseline landmark trên Multi-VSL 200 là đóng góp riêng của đồ án
-(`PLAN.md:103`). Số liệu accuracy của baseline gốc: `[CẦN SỐ LIỆU]`.
+giữ tính so sánh với bài báo gốc (`docs/EMAIL-MULTIVSL.md:32-33`). Theo khảo sát của đồ án,
+baseline chính thức của bài báo là các mô hình chạy trực tiếp trên video (I3D) chứ **không**
+phải trên landmark (`PLAN.md:103`); nếu điều này được xác nhận thì dựng baseline landmark
+trên Multi-VSL 200 là đóng góp riêng của đồ án. Phải nói rõ mức bằng chứng: nguồn duy nhất
+cho nhận định trên là ghi chú khảo sát do chính đồ án lập, kho mã không lưu bản sao bài báo
+cũng như bảng kết quả baseline trích lại, nên nhận định chưa được kiểm chứng tới nguồn gốc:
+`[CẦN TRÍCH DẪN — bảng kết quả baseline trong bài báo gốc]`. Số liệu accuracy của baseline
+gốc: `[CẦN SỐ LIỆU]`.
 
 **Hạn chế.** Thư mục Google Drive công khai dẫn từ README chỉ chứa bản demo, ước tính khoảng
 1% số video được tham chiếu trong các file split (`docs/EMAIL-MULTIVSL.md:30-31,59-60`). Kho
 mã không có file LICENSE nên tình trạng pháp lý khi dùng lại không rõ ràng
 (`training/README.md:32`). Kênh xin dữ liệu qua GitHub issue đã bị bỏ ngỏ 14 tháng với 5
-lượt hỏi không được trả lời, buộc đồ án chuyển sang email trực tiếp
+người hỏi không được trả lời, buộc đồ án chuyển sang email trực tiếp
 (`docs/EMAIL-MULTIVSL.md:8-12`). Cuối cùng, nhãn là số (0–198) và đồ án chưa có ánh xạ sang
-từ tiếng Việt — câu hỏi đã gửi kèm thư xin dữ liệu (`docs/EMAIL-MULTIVSL.md:37,64`). Với hệ
-thống cần hiển thị chữ và ghép câu tiếng Việt, thiếu ánh xạ là hạn chế nghiêm trọng.
+từ tiếng Việt — câu hỏi đã gửi kèm thư xin dữ liệu (`docs/EMAIL-MULTIVSL.md:37,64`). Lưu ý
+dải nhãn 0–198 ứng với **199 lớp** chứ không phải 200 như tên tập con `label_1_200` gợi ý;
+chính thư xin dữ liệu cũng ghi hai cách khác nhau (dòng 32 viết "labels 1–200", dòng 37 và
+64 viết "(0–198)"), nên số lớp thực tế của tập con: `[CẦN SỐ LIỆU]`, phải xác nhận cùng lúc
+với việc được cấp dữ liệu vì đây là tham số quyết định của mọi bảng accuracy ở Chương 4. Với
+hệ thống cần hiển thị chữ và ghép câu tiếng Việt, thiếu ánh xạ là hạn chế nghiêm trọng.
 
 ### 2.1.2 VSL400
 
@@ -51,7 +59,8 @@ sách tác giả và nơi công bố: `[CẦN TRÍCH DẪN]`.
 **Dùng được gì.** Kho mã đã lưu phần manifest công khai, lấy qua bên thứ ba đã được cấp
 quyền (`github.com/Wbao176/Vietnamese_Sign_Language_Project`): `label_map.json` với đúng 400
 gloss tiếng Việt ánh xạ id 0–399, và ba file split với 17.104 / 2.885 / 4.764 bản ghi (đếm
-dòng, không kể tiêu đề), trường gồm `video_id, signer_id, fps, resolution, gloss,
+trực tiếp trên `train/val/test.csv`, không kể tiêu đề; đối chiếu
+`training/vsl400/README.md:10-11`), trường gồm `video_id, signer_id, fps, resolution, gloss,
 num_frames, length_seconds`. Ưu thế quyết định so với Multi-VSL là **có sẵn tên gloss tiếng
 Việt**, nối thẳng được vào module `dictionary` và vào prompt ghép câu mà không phải xin thêm
 bảng ánh xạ (`training/vsl400/README.md:19-20`).
@@ -90,11 +99,14 @@ QIPEDC (`qipedc.moet.gov.vn`) là từ điển ngôn ngữ ký hiệu quốc gia
 dục và Đào tạo phối hợp Ngân hàng Thế giới; bản mirror dùng trong đồ án là dataset
 HuggingFace `Lakeserl/SignConnect` với 4.362 video
 (`training/preprocess/import_signconnect.py:1-5`). Hậu tố `B`/`N`/`T` trong tên file đánh
-dấu biến thể vùng miền Bắc/Nam/Trung; script import ưu tiên biến thể Bắc, rồi bản không hậu
-tố, rồi Nam, rồi Trung (`import_signconnect.py:5,115-117`).
+dấu biến thể vùng miền Bắc/Nam/Trung; ở nhánh nhập toàn kho, script chọn biến thể Bắc trước,
+rồi bản không hậu tố, rồi Nam, rồi Trung (hàm `preference` trong `full_vocab`,
+`import_signconnect.py:5,104-125` — cụ thể là dòng 115-117).
 
 **Dùng được gì.** Đây là vật liệu cho **chiều ngược** (tiếng Việt → ký hiệu). Script gom nhãn
-theo từ, sinh gloss ASCII duy nhất và nạp qua đúng API thật của backend; kết quả kiểm chứng
+theo từ, sinh gloss ASCII duy nhất và nạp qua đúng API quản trị thật của backend (đăng nhập
+tài khoản quản trị lấy token, rồi tạo ký hiệu và tải clip kèm `Bearer` token —
+`import_signconnect.py:21,61,79,136`) thay vì ghi thẳng vào cơ sở dữ liệu; kết quả kiểm chứng
 trên đĩa là **3.318 clip `.mp4`** trong `storage/clips` (đếm trực tiếp; commit `17e0664` ghi
 "~3.300 từ"). Bộ từ vựng khởi đầu thủ công gồm 30 mục kèm nghĩa tiếng Việt và chủ đề
 (`import_signconnect.py:24-55`).
@@ -103,9 +115,13 @@ trên đĩa là **3.318 clip `.mp4`** trong `storage/clips` (đếm trực tiế
 dùng làm dữ liệu huấn luyện nhận dạng** được — nó là tài nguyên phát lại, và gián tiếp là
 nguồn gốc của VOYA_VSL. Đây cũng là từ điển ở mức **từ rời**, không có câu liên tục. Quan
 trọng hơn, kho từ điển quốc gia thiếu ký hiệu rời cho nhiều từ rất thông dụng: "hôm nay",
-"ngày mai", "hôm qua", "cảm ơn", "bác sĩ" (commit `17e0664`); riêng "tôi" không có ký hiệu
-từ vựng vì VSL diễn đạt ngôi thứ nhất bằng động tác chỉ vào mình
-(`apps/web/src/app/speak/SpeakTool.tsx:58-61`). Phát hiện này là lý do phải bổ sung nhánh
+"ngày mai", "hôm qua", "cảm ơn", "bác sĩ" (commit `17e0664`), và cả "tôi" — ghi chú
+`apps/web/src/app/speak/SpeakTool.tsx` dòng 59-60 nêu đích danh bốn từ "tôi", "cảm ơn",
+"bác sĩ", "hôm nay" là những từ **từ điển quốc gia không có ký hiệu rời**. Một cách giải thích
+khả dĩ cho riêng trường hợp "tôi" là VSL diễn đạt ngôi thứ nhất bằng động tác chỉ vào chính
+mình `[CẦN TRÍCH DẪN — tài liệu ngôn ngữ học về VSL]`; nguồn duy nhất trong kho mã cho mệnh
+đề này là chú thích do chính đồ án viết, và cũng không loại trừ khả năng kho từ điển đơn
+giản là còn thiếu. Dù nguyên nhân là gì, dữ kiện thiếu clip là lý do phải bổ sung nhánh
 đánh vần bằng bảng chữ cái ngón tay. Điều khoản sử dụng lại của QIPEDC/SignConnect chưa được
 xác minh: `[CẦN TRÍCH DẪN]`.
 
@@ -116,9 +132,11 @@ xác minh: `[CẦN TRÍCH DẪN]`.
 Đồ án khảo sát ba hướng và chốt một hướng, lý do loại trừ ghi ngay trong mã nguồn
 (`training/model/model.py:3-6`; `training/README.md:39`).
 
-**SPOTER** (`github.com/matyasbohacek/spoter`, Apache-2.0) là kiến trúc Transformer trên
-pose đơn giản nhất để khởi đầu, được lấy làm mốc tham chiếu (`training/README.md:34`). Thông
-tin bài báo gốc của SPOTER (tác giả, hội nghị, năm): `[CẦN TRÍCH DẪN]`.
+**SPOTER** (`github.com/matyasbohacek/spoter`) được đồ án chọn làm mốc tham chiếu khởi đầu
+vì kiến trúc Transformer trên pose gọn và vì mã nguồn mở theo giấy phép Apache-2.0
+(`training/README.md:34`). Đồ án chưa thực hiện khảo sát so sánh định lượng giữa SPOTER và
+các kiến trúc pose-transformer khác (số tham số, FLOPs): `[CẦN SỐ LIỆU]`. Thông tin bài báo
+gốc của SPOTER (tác giả, hội nghị, năm): `[CẦN TRÍCH DẪN]`.
 
 **Giải pháp hạng nhất cuộc thi Kaggle GISLR** (Google Isolated Sign Language Recognition,
 `github.com/hoyso48/Google---Isolated-Sign-Language-Recognition-1st-place-solution`) dùng
@@ -127,8 +145,12 @@ kiến trúc lai 1D-CNN + Transformer, được đặt làm đích nâng cấp c
 cả hai tay **và** thân trên thay vì chỉ hai tay (`PLAN.md:254`).
 
 **Mạng nơ-ron đồ thị (GCN/ST-GCN)** bị loại có chủ đích: phức tạp hơn nhiều trong khi lợi
-ích được đánh giá là nhỏ ở quy mô 100–200 gloss (`model.py:5-6`). Kết luận: Transformer trên
-landmark là điểm cân bằng accuracy/độ phức tạp tốt nhất cho quy mô đồ án.
+ích được đánh giá là nhỏ ở quy mô 100–200 gloss (`model.py:5-6`). Kết luận: đồ án chọn
+Transformer trên landmark vì đánh giá đây là điểm cân bằng hợp lý giữa accuracy và độ phức
+tạp ở quy mô 100–200 gloss (`training/model/model.py:3-6`). Cần nói rõ đây là phán đoán
+thiết kế chứ chưa phải kết quả đo: việc so sánh định lượng với hai phương án còn lại chưa
+thực hiện được vì chưa có dữ liệu huấn luyện, nên accuracy của từng phương án:
+`[CẦN SỐ LIỆU]`.
 
 Về **suy luận thời gian thực**, kế hoạch dựa trên một công thức đã công bố (arXiv
 `2302.07693`): cửa sổ trượt 16–32 frame, stride 2–4, huấn luyện thêm lớp nền `NO_SIGN`,
@@ -150,8 +172,11 @@ chạy thật — mới chỉ chặn lặp gloss liền kề, còn bỏ phiếu 
 Ngữ pháp VSL khác ngữ pháp tiếng Việt nói: thiếu hư từ, trật tự từ khác. Bước chuyển chuỗi
 gloss thành câu vì vậy là một bài toán xử lý ngôn ngữ thực sự chứ không phải phần trang trí
 (`translation/SentenceComposer.java:24-26`). Tiền lệ được đồ án dựa vào là **Spotter+GPT**
-(arXiv `2403.10434`): dùng mô hình ngôn ngữ lớn với prompt few-shot, **không** fine-tune
-(`SentenceComposer.java:25-26`; `PLAN.md:93`). Nhan đề đầy đủ, tác giả và nơi công bố:
+(arXiv `2403.10434`), mà theo ghi nhận trong chính mã nguồn của đồ án là dùng mô hình ngôn
+ngữ lớn với prompt few-shot, **không** fine-tune (`SentenceComposer.java:25-26`;
+`PLAN.md:93`). Cả hai nguồn này đều là ghi chú do đồ án tự lập, kho mã không lưu bản sao hay
+đoạn trích bài báo, nên phần mô tả phương pháp ở trên chưa được đối chiếu với nguyên bản.
+Nhan đề đầy đủ, tác giả, nơi công bố và xác nhận phương pháp từ chính bài báo:
 `[CẦN TRÍCH DẪN]`.
 
 **Dùng được gì.** SignBridge áp dụng đúng nguyên tắc đó: prompt hệ thống chứa 6 ví dụ mẫu,
@@ -161,21 +186,27 @@ Lý do không fine-tune ở quy mô đồ án còn nằm ở chỗ chưa tiếp 
 gloss ↔ câu tiếng Việt nào; bằng chứng về sự tồn tại của corpus như vậy: `[CẦN TRÍCH DẪN]`.
 
 **Kết quả đo được.** Bộ đánh giá tự động (`training/eval/sentence_eval.py`, gọi API thật)
-trên các ca đã chạy xong cho: phủ nội dung 4/4 (100%), không bịa thêm 3/4 (75%), đúng dạng
+trên **4 ca đã chạy xong** cho: phủ nội dung 4/4 (100%), không bịa thêm 3/4 (75%), đúng dạng
 một câu 4/4 (100%); độ trễ gọi LLM trung vị 2.920 ms, nhỏ nhất 2.432 ms, lớn nhất 3.433 ms
-(`docs/report/data/sentence-eval.md`). Ca chưa đạt là `XIN_LOI / TOI / DI` → "Xin lỗi, tôi
-đi đây.", mô hình thêm từ "đây" ngoài chuỗi gloss — đúng kiểu lỗi mà hệ thống hỗ trợ giao
-tiếp không được phép mắc.
+(`docs/report/data/sentence-eval.md:14-18`). Ca chưa đạt là `XIN_LOI / TOI / DI` → "Xin lỗi,
+tôi đi đây.", mô hình thêm từ "đây" ngoài chuỗi gloss — đúng kiểu lỗi mà hệ thống hỗ trợ
+giao tiếp không được phép mắc.
 
 **Hạn chế phải nói thẳng.** Thứ nhất, cỡ mẫu quá nhỏ để có ý nghĩa thống kê: bộ kiểm thử
-`training/eval/gloss_sequences.json` hiện chứa 30 chuỗi gloss, nhưng bản báo cáo sinh tự
-động mới nêu 6 chuỗi và **chỉ chạy xong 4/6 ca** vì hết hạn mức miễn phí
-(`docs/report/data/sentence-eval.md:5-6`). Hai con số này đang lệch nhau, nên cỡ mẫu chính
-thức của chương đánh giá: `[CẦN SỐ LIỆU]` — phải đọc lại sau khi chạy hết script. Thứ hai,
-việc chấm Likert độc lập bởi ≥3 người vẫn chưa thực hiện (`Plan-sprint2-ui.md:266`;
-`docs/report/data/phieu-cham.csv` mới ở dạng phiếu trống). Thứ ba, có một rủi ro vận hành
-đã được ghi nhận bằng chứng cứ từ chính API: gói miễn phí giới hạn **20 lượt gọi mỗi ngày
-cho mỗi mô hình** (`quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier`), và bí danh
+`training/eval/gloss_sequences.json` chứa **30 chuỗi gloss** nhưng **mới chạy xong 4/30 ca**
+(13%) thì cạn hạn mức miễn phí, nên ba tỉ lệ nêu ở trên là phép đo **dở dang** trên 4 ca,
+không phải kết quả của cả bộ. Con số "6 chuỗi" ghi trong bản báo cáo sinh tự động
+(`docs/report/data/sentence-eval.md:5-6`) là sản phẩm của một lần chạy kèm tuỳ chọn
+`--limit 6` (`training/eval/sentence_eval.py:277,288-289`, tổng số ca được ghi vào báo cáo
+theo độ dài danh sách đã cắt ở dòng 352 và 390-392), không phải cỡ bộ kiểm thử thật. Cỡ mẫu
+chính thức của chương đánh giá vì vậy phải đọc lại sau khi chạy hết script không kèm
+`--limit`: `[CẦN SỐ LIỆU]`. Thứ hai, việc chấm Likert độc lập bởi ≥3 người
+(`docs/report/data/sentence-eval.md:22-23`) vẫn chưa thực hiện: hạng mục C4 mới ở trạng thái
+kế hoạch (`Plan-sprint2-ui.md:266`) và `docs/report/data/phieu-cham.csv` còn là phiếu trống
+— 4 dòng dữ liệu, ba cột điểm `dung_y_1_5`, `ngu_phap_1_5`, `tu_nhien_1_5` đều rỗng. Thứ
+ba, có một rủi ro vận hành đã được ghi nhận bằng chứng cứ từ chính API: gói miễn phí giới
+hạn **20 lượt gọi mỗi ngày cho mỗi mô hình**
+(`quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier`), và bí danh
 `gemini-flash-latest` mà hệ thống cấu hình hiện trỏ tới `gemini-3.6-flash` — tức mô hình
 thật sự chạy có thể đổi bất cứ lúc nào ngoài tầm kiểm soát của ứng dụng
 (`docs/report/data/rui-ro-quota-llm.md`). Đây là điểm phải nêu khi so sánh với Spotter+GPT:
@@ -211,12 +242,14 @@ webcam tới câu tiếng Việt phát thành tiếng và ngược lại — đ�
 ở tầng hệ thống này (`PLAN.md:13`).
 
 **Thứ hai, baseline landmark trên Multi-VSL** (mục 2.1.1) là đóng góp riêng đã lên kế hoạch
-nhưng **chưa thực hiện được** vì còn chờ dữ liệu.
+nhưng **chưa thực hiện được** vì còn chờ dữ liệu. Tính "riêng" của đóng góp này còn phụ
+thuộc vào việc bài báo gốc thật sự không kèm baseline trên landmark — điều mà kho mã chưa
+kiểm chứng được tới nguồn gốc (xem dấu `[CẦN TRÍCH DẪN]` ở mục 2.1.1).
 
 **Thứ ba, tầng gloss → câu tiếng Việt.** Các bộ dữ liệu chỉ trả về nhãn từ rời; khoảng cách
 từ chuỗi nhãn tới câu tiếng Việt tự nhiên chưa được các công trình khảo sát xử lý cho tiếng
-Việt. SignBridge lấp bằng tiền lệ Spotter+GPT, đã có số liệu đo thật nhưng trên bộ kiểm thử
-rất nhỏ (mục 2.3).
+Việt. SignBridge lấp bằng tiền lệ Spotter+GPT, đã có số liệu đo thật nhưng mới chạy được
+4/30 ca của bộ kiểm thử nên phép đo còn dở dang (mục 2.3).
 
 **Thứ tư, chiều ngược có xử lý từ ngoài từ điển** (mục 2.1.4): kết hợp khớp cụm dài nhất với
 đánh vần bằng bảng chữ cái ngón tay, đồng thời báo trung thực những từ không dịch được thay
@@ -224,8 +257,9 @@ vì im lặng bỏ qua.
 
 **Giới hạn phải nêu rõ để không thổi phồng.** (1) Phạm vi là nhận dạng ký hiệu **rời**; đồ án
 không giải bài toán ký hiệu liên tục không ngắt (`PLAN.md:18,21`). (2) Tại thời điểm viết
-chương này **chưa có mô hình ONNX thật**: `apps/ml/` chỉ có `README.md`, `app/`,
-`requirements.txt`, không có `model/`, nên dịch vụ suy luận đang chạy chế độ stub; toàn bộ
-số liệu top-1/top-5, recall của lớp `NO_SIGN` và độ trễ đầu-cuối: `[CẦN SỐ LIỆU]`. (3) Vì cả
-Multi-VSL lẫn VSL400 đều chờ cấp quyền, "đóng góp baseline landmark" hiện là **cam kết chưa
-được kiểm chứng bằng thực nghiệm** và phải được trình bày đúng như vậy.
+chương này **chưa có mô hình ONNX thật**: thư mục `apps/ml/model/` — nơi dịch vụ tìm
+`sign_model.onnx` và `labels.json` — không tồn tại, nên dịch vụ suy luận khởi động ở chế độ
+stub (`apps/ml/app/main.py:22,59-63`); toàn bộ số liệu top-1/top-5, recall của lớp `NO_SIGN`
+và độ trễ đầu-cuối: `[CẦN SỐ LIỆU]`. (3) Vì cả Multi-VSL lẫn VSL400 đều chờ cấp quyền,
+"đóng góp baseline landmark" hiện là **cam kết chưa được kiểm chứng bằng thực nghiệm** và
+phải được trình bày đúng như vậy.

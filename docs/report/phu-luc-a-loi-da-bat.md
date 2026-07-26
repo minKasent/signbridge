@@ -7,7 +7,8 @@ lỗi đều truy ngược được tới một dòng mã, một comment giải 
 trong kho mã.
 
 **Nguyên tắc lập danh sách.** Chỉ đưa vào những lỗi có bằng chứng kiểm chứng được ngay
-trong kho mã `d:/Khoa/DATN` (branch `main`, HEAD `26b7f22`): hoặc là comment tại chỗ sửa
+trong kho mã `d:/Khoa/DATN` (branch `main`, commit `daeec19` — chính là commit đưa phụ lục
+này vào kho; mọi số dòng trích trong phụ lục được đọc ở trạng thái đó): hoặc là comment tại chỗ sửa
 mô tả đúng triệu chứng và nguyên nhân, hoặc là diff của commit tương ứng, hoặc là một
 test hồi quy được thêm cùng bản vá. Những lỗi được các thông điệp commit hoặc tài liệu kế
 hoạch nhắc tới nhưng không truy được về mã nguồn thì **không** được tính vào bảng, mà được
@@ -28,7 +29,7 @@ thế nhau, và phân bố kết quả dưới đây chính là lập luận cho
 
 | Bộ kiểm thử | Quy mô thật (đếm từ mã nguồn) | Vị trí |
 |---|---|---|
-| Test Java (JUnit + Testcontainers + Spring Modulith) | **9 file**, chứa **17** phương thức `@Test` | `apps/core/src/test/java/vn/signbridge/` |
+| Test Java (JUnit + Testcontainers + Spring Modulith) | **17** phương thức `@Test` trong **7** lớp kiểm thử (thư mục có 9 file `.java`, 2 file là lớp hạ tầng Testcontainers không chứa `@Test`) | `apps/core/src/test/java/vn/signbridge/` |
 | E2E hạ tầng (Node, chạy trên stack thật) | **21** khẳng định `check()` | `tests/e2e/infrastructure.test.js` |
 | E2E ghép câu (gọi Gemini thật) | **6** khẳng định `check()` | `tests/e2e/sentence.test.js` |
 | **Tổng khẳng định E2E** | **27** | |
@@ -39,8 +40,13 @@ hiện bằng mắt. Đây là dạng "kiểm thử kiến trúc" chứ không p
 
 Ghi chú trung thực về số liệu: `README.md` dòng 89 và `tests/e2e/README.md` hiện ghi
 "17 kiểm tra E2E", còn `README.md` dòng 87 ghi "9 test" cho phía Java. Đếm lại trực tiếp
-từ mã nguồn cho ra **21** khẳng định E2E hạ tầng và **17** phương thức `@Test` trong **9
-file**. Con số 17/9 trong README là số liệu của một thời điểm cũ chưa được cập nhật; báo
+từ mã nguồn cho ra **21** khẳng định E2E hạ tầng và **17** phương thức `@Test` nằm trong
+**7** lớp kiểm thử: `SignAdminIntegrationTests` 5, `AuthFlowIntegrationTests` 3,
+`SentenceComposerTests` 3, `ModularityTests` 2, `SignComposerNormalizeTests` 2,
+`CoreApplicationTests` 1, `AnalyticsIntegrationTests` 1. Hai file `.java` còn lại trong
+cùng thư mục — `TestCoreApplication.java` và `TestcontainersConfiguration.java` — không
+chứa phương thức `@Test` nào mà chỉ là hạ tầng chạy test, nên không được đếm là lớp kiểm
+thử. Con số 17/9 trong README là số liệu của một thời điểm cũ chưa được cập nhật; báo
 cáo này dùng con số đếm lại. (Kết quả 21/21 cũng được ghi trong `docs/merge-notes/branch-c-sprint2.md`
 dòng 52 và trong thông điệp commit `07807c2`.)
 
@@ -80,11 +86,35 @@ thống có nhiều tầng và nhiều trạng thái vòng đời như SignBridg
 chế phát hiện lỗi có năng suất cao nhất**, còn test đóng vai trò khóa chặt bản vá lại để
 lỗi không tái phát.
 
-Có **10** bản vá được kèm test hồi quy — hoặc được phủ bởi một test tích hợp thêm vào cùng
-bản vá — ngay tại thời điểm sửa: A5, A6, A12, A16 (khẳng định mới trong
+Có **10** bản vá được một test hồi quy khoá lại: A5, A6, A12, A16 (khẳng định trong
 `tests/e2e/infrastructure.test.js`), E4, E6 (hai phương thức `@Test` thêm mới ở commit
 `0e9d283`, `SignAdminIntegrationTests.java:194` và `:205`), G1-G4 (phủ bởi
 `AnalyticsIntegrationTests.java`; comment tại chỗ sửa ghi rõ "đã tái hiện bằng test tích hợp").
+
+Cần phân biệt ba mức bằng chứng trong số 10 bản vá này, vì tiêu chuẩn nêu ở đầu phụ lục là
+"test hồi quy được thêm cùng bản vá" và tiêu chuẩn đó phải được áp cho chính phụ lục.
+
+- **Test thêm đúng trong diff của bản vá — E4, E6.** `git show --stat 0e9d283` cho thấy
+  commit vá đụng thẳng `SignAdminIntegrationTests.java` và thêm hai phương thức
+  `taoTrungGlossTra409ChuKhong500()` (dòng 194-195) và `quayClipThayTheKhacDuoiThiFileCuBiDon()`
+  (dòng 205-206). Đây là hai trường hợp duy nhất khớp tiêu chuẩn theo nghĩa chặt nhất.
+- **Test có trước bản vá và chính nó phát hiện lỗi — G1-G4.**
+  `AnalyticsIntegrationTests.java` được đưa vào kho từ commit `9be02a7` và không hề bị sửa
+  ở commit vá `07807c2` — commit đó sửa 11 tệp, trong đó phần `analytics` gồm
+  `AnalyticsController.java`, `GlossStatsListener.java` và `GlossUsageRepository.java`,
+  nhưng **không** có tệp kiểm thử nào. Điều này nhất quán với cột "Phát
+  hiện" của bảng A.2: G1 và G4 được đánh **T**, G2 và G3 được đánh **R+T**. Test ở đây đóng
+  vai trò vừa phát hiện vừa khoá lại, nhưng không phải là test "thêm cùng bản vá".
+- **Test đã chạy lúc vá nhưng vào kho muộn hơn — A5, A6, A12, A16.** Bộ E2E đã tồn tại và
+  đã chạy tại thời điểm vá: thông điệp commit `3260360` ghi "17/17 E2E". Tuy nhiên tệp
+  `tests/e2e/infrastructure.test.js` chỉ được đưa vào kho ở commit `c8d6e4a`, tức hai commit
+  sau bản vá (thứ tự thật: `3260360` → `953eacf` → `c8d6e4a`), nên xét riêng bằng diff thì
+  bốn trường hợp này **chưa** chứng minh được là "cùng bản vá". Hội đồng đối chiếu được bằng
+  `git log --diff-filter=A -- tests/e2e/infrastructure.test.js`.
+
+Cả 10 bản vá đều đang được một khẳng định kiểm thử khoá hành vi ở HEAD, nên vẫn được tính
+vào con số 10; ba mức trên chỉ nói về mức độ chặt của bằng chứng, không phải về việc test có
+tồn tại hay không.
 
 ---
 
@@ -115,14 +145,23 @@ Ký hiệu cột "Phát hiện": **T** = kiểm thử tự động · **R** = re
 | A16 | Core | Hai request cùng email chạy song song: cả hai qua `existsByEmail`, request thua nhận 500 thay vì 409 | R | `AuthController.java:54-58`; test `infrastructure.test.js:66` |
 | A17 | Web | Rò WebGL context khi fallback GPU → CPU: tạo được `HandLandmarker` GPU nhưng `PoseLandmarker` GPU lỗi, nhánh `catch` không đóng cái đã tạo | R | `lib/landmarks.ts:36-49` |
 
-### Đợt 2 — Tầng ngôn ngữ: gloss → câu tiếng Việt (commit `953eacf`)
+### Đợt 2 — Tầng ngôn ngữ: gloss → câu tiếng Việt (sửa gốc ở commit `953eacf`, quy tắc áp dụng lại ở các đợt sau)
+
+Bốn lỗi B1-B4 đều được nêu đích danh trong thông điệp commit `953eacf` ("stale closure
+autoSpeak, ref gan luc render (React 19 cam), setState dong bo trong effect, doc localStorage
+trong effect") và đều được sửa trong các tệp web mà commit đó đụng tới: B1 ở
+`TranslateDemo.tsx` (thêm `autoSpeakRef`), B2 ở `useVisionPipeline.ts`, còn B3 và B4 ở
+`CollectTool.tsx`. Riêng B3 và B4 cần hai loại bằng chứng tách bạch, vì nơi sửa gốc là
+`CollectTool.tsx` — tệp đã bị rút gọn ở commit `daeec19` khi tính năng thu mẫu tự quay bị
+dừng — nên chỉ còn truy được qua diff; còn hiện trạng ở HEAD là các trang thêm sau đã áp
+dụng lại đúng quy tắc đó.
 
 | # | Tầng | Lỗi | Phát hiện | Bằng chứng |
 |---|---|---|---|---|
-| B1 | Web | Stale closure: `ws.onmessage` gán một lần lúc kết nối nên đóng gói giá trị `autoSpeak` cũ — tắt "tự động đọc" mà máy vẫn đọc | R | `TranslateDemo.tsx:38-42, 118` |
+| B1 | Web | Stale closure: `ws.onmessage` gán một lần lúc kết nối nên đóng gói giá trị `autoSpeak` cũ — tắt "tự động đọc" mà máy vẫn đọc | R | `TranslateDemo.tsx:38-43, 118` |
 | B2 | Web | Gán ref trong thân render (React 19 cấm đụng ref lúc render) | R | `useVisionPipeline.ts:40-45` |
-| B3 | Web | `setState` đồng bộ trong thân effect gây một lượt render thừa mỗi lần mount | R | `app/stats/StatsDashboard.tsx:48-50`; `app/speak/SpeakTool.tsx:122-125` |
-| B4 | Web | Đọc `localStorage` trong effect thay vì lazy initializer → render thừa và nguy cơ lệch hydration | R | `app/collect/CollectTool.tsx:30-33`; `lib/auth.ts:82-90` |
+| B3 | Web | `setState` đồng bộ trong thân effect gây một lượt render thừa mỗi lần mount | R | sửa gốc: diff `git show 953eacf -- apps/web/src/app/collect/CollectTool.tsx` (effect nạp từ điển được viết lại để mọi `setState` nằm sau `await`); quy tắc áp dụng lại ở các trang thêm sau: `app/stats/StatsDashboard.tsx:48-50`, `app/speak/SpeakTool.tsx:123-126` |
+| B4 | Web | Đọc `localStorage` trong effect thay vì lazy initializer → render thừa và nguy cơ lệch hydration | R | sửa gốc: diff `git show 953eacf -- apps/web/src/app/collect/CollectTool.tsx` (dòng bị xoá: `setSignerName(localStorage.getItem("signbridge.signer") ?? "")` trong effect); quy tắc áp dụng lại: `lib/auth.ts:82-90` |
 
 ### Đợt 3 — Chiều ngược và nhập kho từ điển QIPEDC (commit `ddbb2c0`, `0531c7a`)
 
@@ -146,8 +185,8 @@ Ký hiệu cột "Phát hiện": **T** = kiểm thử tự động · **R** = re
 | D8 | ML | Crop ngẫu nhiên có thể trúng vùng hoàn toàn không có tay nhưng vẫn mang nhãn thật → model học "cửa sổ trống tay = ký hiệu X" | R | `dataset.py:133-143` |
 | D9 | ML | Contract cửa sổ không được kiểm ở ML service: `ExportWrapper` bỏ mask nên cửa sổ sai kích thước bị âm thầm đệm 0, cho kết quả vô nghĩa mà không ai biết | R | `apps/ml/app/main.py:45-51, 83` |
 | D10 | Web/ML | Nhịp trích đặc trưng không ghim: màn hình 60/120 Hz sinh chuỗi frame "nhanh gấp đôi" so với phân bố video huấn luyện 25 fps | R | `useVisionPipeline.ts:23-24, 99-103`; `train.py:35` (`FPS_HINT = 25`) |
-| D11 | Core/ML | Mẫu thu qua `/collect` thiếu `signer` và `fps` → không thực hiện được split signer-independent | R | `dataset/SampleStorage.java:37-51`; `CollectTool.tsx` |
-| D12 | ML | Thiếu augment vị trí camera: không có phép dịch/scale toàn khung nên model học luôn cả vị trí đứng và khoảng cách tới camera của người ký trong tập huấn luyện | R | `dataset.py:18, 174-183`; thông điệp commit `e1fdf78` ("thiếu augment vị trí camera") |
+| D11 | Core/ML | Mẫu thu qua `/collect` thiếu `signer` và `fps` → không thực hiện được split signer-independent | R | `dataset/SampleStorage.java:37-51` (docblock 37-41 nêu lý do "signer để split signer-independent", dòng 50 ghi `signer`/`fps` vào tệp mẫu) |
+| D12 | ML | Thiếu augment vị trí camera: không có phép dịch/scale toàn khung nên model học luôn cả vị trí đứng và khoảng cách tới camera của người ký trong tập huấn luyện | R | `dataset.py:18, 174-183`; thông điệp commit `e1fdf78`, mục liệt kê 16 lỗi review ML (nguyên văn không dấu: `thieu augment vi tri camera`) |
 
 ### Đợt 5 — Nhánh A, admin studio (commit `0e9d283`)
 
@@ -176,13 +215,13 @@ Ký hiệu cột "Phát hiện": **T** = kiểm thử tự động · **R** = re
 | G3 | Core | Giao dịch read-only dưới READ COMMITTED vẫn không cho ảnh chụp nhất quán (Postgres cấp snapshot mới cho **từng câu lệnh**) → phải đặt REPEATABLE READ | R+T | `AnalyticsController.java:39-44` |
 | G4 | Core | Khai báo một interface projection thứ hai trong cùng repository làm truy vấn JPQL thứ nhất trả rỗng | T | `analytics/GlossUsageRepository.java:23-36` |
 | G5 | Bảo mật | Trang `/login` công khai in thẳng tài khoản quản trị và prefill sẵn email | R | diff `git show 07807c2 -- apps/web/src/app/login/LoginForm.tsx`; hiện trạng `LoginForm.tsx:16` (`useState("")`) |
-| G6 | Bảo mật | `/actuator/**` mở cho mọi tài khoản đã đăng nhập: USER tự đăng ký xem được `/actuator/modulith`, `/actuator/env` | R | `SecurityConfig.java:42-44` |
+| G6 | Bảo mật | `/actuator/**` mở cho mọi tài khoản đã đăng nhập: USER tự đăng ký xem được `/actuator/modulith` và `/actuator/info` — hai endpoint lộ cấu trúc module nội bộ | R | `SecurityConfig.java:42-44`; danh sách endpoint được phơi bày là `health,info,modulith` (`application.yml:43-47`) |
 | G7 | Bảo mật | Bảng `gloss_usages` không có trần ghi theo phiên, trong khi nguồn sự kiện là WebSocket công khai — một script cắm socket cả đêm làm phình bảng và bẻ cong dashboard | R | `analytics/GlossStatsListener.java:19-22, 29` (`MAX_ROWS_PER_SESSION = 300`) |
 | G8 | Web | Trang `/record` nhận cả phiên USER: quay xong clip mới ăn 403 | R | `app/record/RecordTool.tsx:48-55, 179-185` |
 | G9 | Core | Gộp theo ngày ở JVM: `findTimesSince` tải cả bảng về bộ nhớ, mà bảng do endpoint công khai sinh ra nên không giới hạn kích thước | R | `GlossUsageRepository.java:23-36` (chuyển sang `to_char(... at time zone ...)`) |
 | G10 | Web | `SpeakTool`: micro còn bật sau khi rời trang | R | `SpeakTool.tsx:164-169` |
 | G11 | Web | `SpeakTool`: một clip lỗi (404 hoặc sai codec) làm đứng cả chuỗi phát | R | `SpeakTool.tsx:370` (`onError={onClipEnded}`) |
-| G12 | Web | `SpeakTool`: từ có trong từ điển nhưng thiếu clip vẫn vào map cụm, chặn mất nhánh "từ lạ → đánh vần" → câu chứa từ đó đứng im | R | `SpeakTool.tsx:136-139` |
+| G12 | Web | `SpeakTool`: từ có trong từ điển nhưng thiếu clip vẫn vào map cụm, chặn mất nhánh "từ lạ → đánh vần" → câu chứa từ đó đứng im | R | `SpeakTool.tsx:138-141` (comment 138-139, điều kiện `s.clipUrl` được thêm ở dòng 140 cho map cụm và dòng 141 cho map chữ cái) |
 | G13 | Web | `/video`: frame bị vứt trong lúc socket đang CONNECTING → mất đoạn đầu video sau khi đổi file hoặc dịch lại | R | `VideoTranslateTool.tsx:70-84, 124-129` |
 | G14 | Web | `/video`: tua **lùi** không reset phiên → đoạn vừa xử lý vào đệm server lần thứ hai, gloss lặp trong câu | R | `VideoTranslateTool.tsx:181-193` |
 | G15 | Web | Không lưu hạn token → UI tiếp tục dùng token đã hết hạn, người dùng làm xong việc mới ăn 401 | R | `lib/auth.ts:13, 30, 43-66` |
@@ -202,9 +241,9 @@ Ký hiệu cột "Phát hiện": **T** = kiểm thử tự động · **R** = re
 
 | # | Tầng | Lỗi | Phát hiện | Bằng chứng |
 |---|---|---|---|---|
-| I1 | Kiểm thử | Lùi 3 giây khi dính HTTP 429 của Gemini free tier — gói miễn phí giới hạn theo **phút** nên chờ vài giây là chắc chắn dính lại, hỏng cả lượt đánh giá | C | `sentence_eval.py:142-169` (đọc `Retry-After`, mặc định 20 s × số lần thử) |
+| I1 | Kiểm thử | Lùi 3 giây khi dính HTTP 429 của Gemini free tier — gói miễn phí giới hạn theo **phút** nên chờ vài giây là chắc chắn dính lại, hỏng cả lượt đánh giá | C | `sentence_eval.py:146-181` (cả hàm `goi_gemini`: docstring 147-151 nêu triệu chứng, bản vá đọc `Retry-After` ở dòng 177-178, mặc định 20 s × số lần thử) |
 | I2 | Kiểm thử | Prompt đánh giá bị chép tay nên lệch với prompt production → số liệu đo được là số của "một hệ thống không tồn tại" | R | `sentence_eval.py:114-122` (bóc `SYSTEM_PROMPT` trực tiếp từ `SentenceComposer.java`, xử lý đúng luật thụt lề của Java text block) |
-| I3 | Kiểm thử | Độ trễ trung bình cộng cả thời gian nằm chờ giới hạn tốc độ của các ca phải thử lại | R | `sentence_eval.py:361-364` |
+| I3 | Kiểm thử | Độ trễ trung bình cộng cả thời gian nằm chờ giới hạn tốc độ của các ca phải thử lại — bản vá loại ca vượt 15 s và chuyển sang báo cáo **trung vị** | R | `sentence_eval.py:377-379` (comment 377-378 + bộ lọc `do_tre_ms < 15000` ở dòng 379); `:405-408` (báo cáo trung vị bằng `statistics.median` ở dòng 407) |
 
 ---
 
@@ -421,10 +460,14 @@ List<double[]> window = List.copyOf(buffer.subList(buffer.size() - WINDOW, buffe
 buffer.subList(0, STRIDE).clear();
 ```
 
-Hai chỉ số này chạy về hai hướng ngược nhau. Với mỗi tin nhắn 5 frame gửi lên, buffer chỉ
-mất 8 frame ở đầu nhưng cửa sổ luôn bám lấy 32 frame mới nhất ở cuối, nên toàn bộ phần giữa
-không bao giờ lọt vào cửa sổ nào. Khi client gửi lô lớn (tối đa 60 frame), tốc độ nạp vượt
-tốc độ xả và buffer phình vô hạn.
+Hai chỉ số này chạy về hai hướng ngược nhau, và hậu quả khác nhau tuỳ kích thước lô gửi
+lên. Với lô nhỏ — mặc định của trang `/translate` là 5 frame mỗi tin nhắn
+(`TranslateDemo.tsx:14`, `FRAME_BATCH = 5`) — mỗi tin nhắn nạp 5 frame nhưng xả 8 frame ở
+đầu, nên buffer co lại và dao động quanh WINDOW = 32; ở chế độ này lỗi biểu hiện là bỏ sót
+cửa sổ chứ chưa phình. Khi client gửi lô lớn (trần `MAX_BATCH_FRAMES = 60` ở
+`LandmarkWebSocketHandler.java:43`), tốc độ nạp vượt tốc độ xả: buffer phình vô hạn và vì
+cửa sổ luôn bám lấy 32 frame mới nhất ở cuối nên toàn bộ phần giữa không bao giờ lọt vào
+cửa sổ nào.
 
 **Cách sửa.** Cửa sổ luôn lấy từ **đầu** buffer và lặp cho tới khi không đủ frame, kèm trần
 số cửa sổ mỗi tin nhắn để một tin nhắn không khoá thread quá lâu:
@@ -489,9 +532,10 @@ bốn nơi độc lập: trình duyệt (`landmarks.ts`), script trích landmark
 **1. Test bảo vệ đường đi đã biết; review tìm ra đường đi chưa nghĩ tới.**
 77,9 % số lỗi trong phụ lục này do review đối kháng phát hiện chứ không phải do test. Điều
 đó không hạ thấp giá trị của test: chức năng của test là **khoá bản vá lại**, để lỗi đã sửa
-không quay lại khi mã tiếp tục thay đổi. Mười bản vá trong bảng A.2 được kèm test hồi quy
-ngay tại thời điểm sửa, và chính nhờ cơ chế đó mà các lỗi A5, A6, A16, E4, E6 không tái phát
-qua các đợt tích hợp sau. Quy trình rút ra: review để **tìm**, test để **giữ**.
+không quay lại khi mã tiếp tục thay đổi. Mười bản vá trong bảng A.2 được một test hồi quy
+khoá lại (với các mức bằng chứng khác nhau đã nêu ở mục A.1.4), và chính nhờ cơ chế đó mà
+các lỗi A5, A6, A16, E4, E6 không tái phát qua các đợt tích hợp sau. Quy trình rút ra:
+review để **tìm**, test để **giữ**.
 
 **2. Lỗi nguy hiểm nhất là lỗi im lặng.**
 Nhóm khó nhất trong bảng — G2, G4, A7, D6 — không có điểm chung về tầng công nghệ, nhưng có
@@ -507,9 +551,17 @@ Python (A2, D9), trình duyệt gặp mô hình huấn luyện (D10 — nhịp 2
 múi giờ client (F2), giao thức WebSocket gặp cách hiểu của người viết client (F1), quy ước
 Modulith gặp cơ chế AOP của Spring (G2). Lý do là ở đường biên, mỗi bên đều "đúng" theo tiêu
 chuẩn riêng nên không bên nào báo lỗi. Biện pháp mà dự án áp dụng là biến giả định ngầm
-thành **contract kiểm tra được**: `/health` của ML service công bố `window` để Spring đối
-chiếu (D9); frame sai số chiều bị từ chối ngay ở WebSocket (A6); cửa sổ sai kích thước bị
-trả 422 thay vì âm thầm đệm 0 (D9); `fps_hint` được ghi vào `labels.json` (D10).
+thành **contract kiểm tra được**: cửa sổ sai kích thước bị ML service trả 422 thay vì âm
+thầm đệm 0 (D9, `apps/ml/app/main.py:48-51`); frame sai số chiều bị từ chối ngay ở
+WebSocket (A6); `fps_hint` được ghi vào `labels.json` (D10). Cần nói rõ mức độ hoàn thành:
+`/health` của ML service **có** công bố `window` (`main.py:83`) để Spring có thể đối chiếu
+lúc khởi động, nhưng phần đối chiếu ở phía Spring **hiện chưa được cài đặt** — `MlClient`
+chỉ có duy nhất lời gọi `.uri("/infer")` (`MlClient.java:49`) và toàn bộ `apps/core/src/main`
+không có chỗ nào gọi `/health` của ML service. Chính chú thích trong mã ML cũng chỉ nêu ở
+thì khả năng ("Spring (WINDOW=32) có thể đối chiếu lúc khởi động", `main.py:82`). Nói cách
+khác, kích thước cửa sổ hiện được bảo vệ ở thời điểm **chạy** — ML service trả 422 khi nhận
+sai số frame — chứ chưa được bắt tay ở thời điểm **khởi động**; hạng mục này được ghi vào
+danh sách việc còn lại chứ không được kể như đã hoàn thành.
 
 **4. Endpoint công khai phải được thiết kế với giả định bị lạm dụng.**
 `/ws/translate` và `POST /api/dataset/samples` không yêu cầu đăng nhập vì nhu cầu demo và
@@ -550,8 +602,11 @@ tên 16 mục. Đối chiếu với thông điệp commit (có thêm mục "fram
 A6 ("WebSocket không giới hạn buffer/số chiều") hoặc A13 ("ghi file không atomic" + "dọn file
 mồ côi") thành hai lỗi riêng. Vì không xác định được chắc chắn, phụ lục này ghi **17** và
 không làm tròn lên. Tương tự, việc phân loại "3 lỗi do test E2E" trong thông điệp commit chỉ
-xác minh được **2** trường hợp có comment ghi rõ "tìm ra qua test E2E" (A1, A3);
-trường hợp thứ ba **[CẦN SỐ LIỆU]** — không có bằng chứng trong mã để xác định đó là lỗi nào.
+xác minh được **2** trường hợp có comment tại chỗ sửa ghi rõ rằng lỗi được tìm ra bằng test
+E2E: A1 — "phát hiện qua test E2E" (`WebSocketConfig.java:27`) và A3 — "tìm ra qua test E2E"
+(`SecurityConfig.java:40`); hai comment dùng hai cách diễn đạt khác nhau nên ở đây trích
+riêng từng câu thay vì gộp chung một cụm. Trường hợp thứ ba **[CẦN SỐ LIỆU]** — không có
+bằng chứng trong mã để xác định đó là lỗi nào.
 
 **3. Đợt 4 tuyên bố 16 lỗi review ML, chỉ truy được 12.**
 Thông điệp commit `e1fdf78` ghi "16 lỗi review đã sửa" nhưng phần liệt kê kết thúc bằng dấu
@@ -570,11 +625,25 @@ Bảng A.2 ghi **3** theo bằng chứng trong mã, không theo con số ở ti�
 
 **4. Số liệu về quy mô bộ kiểm thử trong README chưa được cập nhật.**
 `README.md` dòng 87-90 ghi "9 test" (Java) và "17 kiểm tra E2E". Đếm lại từ mã nguồn: **17**
-phương thức `@Test` trong **9 file**, và **21** khẳng định `check()` trong
+phương thức `@Test` nằm trong **7** lớp kiểm thử (thư mục `apps/core/src/test/java/vn/signbridge/`
+có 9 file `.java`, trong đó `TestCoreApplication.java` và `TestcontainersConfiguration.java`
+là hạ tầng chạy test, không chứa `@Test` nào), và **21** khẳng định `check()` trong
 `tests/e2e/infrastructure.test.js` (cộng 6 trong `sentence.test.js`). Con số 21 khớp với kết
 quả ghi trong commit `07807c2` và `docs/merge-notes/branch-c-sprint2.md` dòng 52.
 
-**5. Chưa có lỗi nào truy được ở ba khu vực sau.**
+**5. Tính năng thu mẫu tự quay đã dừng, một số bằng chứng chỉ còn truy được qua diff.**
+Trang `/collect` bị rút gọn thành một trang thông báo ở commit `daeec19` (thông điệp commit
+viết không dấu: "Tinh nang thu mau tu quay da huy theo quyet dinh cua nguoi lam do an"), tệp
+`apps/web/src/app/collect/CollectTool.tsx` từ **215** dòng còn **47** dòng (diff `daeec19`:
+205 dòng xoá, 37 dòng thêm). Hệ quả cho phụ lục này: hai lỗi B3 và B4 — vốn được vá ngay
+trong tệp đó — không còn kiểm chứng được bằng cách mở tệp ở HEAD mà phải đọc diff của commit
+tương ứng, và cột bằng chứng của hai mục này đã được ghi lại theo hướng đó. Riêng D11 không
+bị ảnh hưởng: bằng chứng của nó nằm ở `dataset/SampleStorage.java`, một tệp vẫn mở được bình
+thường ở HEAD. Phần backend của module
+`dataset` (API `POST /api/dataset/samples`, `SampleStorage`) cùng các khẳng định E2E tương
+ứng vẫn giữ nguyên và vẫn chạy, nên D11 vẫn là một lỗi có thật của mã đang tồn tại.
+
+**6. Chưa có lỗi nào truy được ở ba khu vực sau.**
 Không có bằng chứng trong kho mã về lỗi liên quan tới CI/GitHub Actions, tới Docker Compose,
 hoặc tới việc chạy mô hình ONNX thật. Lý do là hiện chưa có mô hình thật: thư mục
 `apps/ml/model/` không tồn tại, `apps/ml/app/main.py` đang chạy chế độ stub, và
@@ -582,15 +651,22 @@ hoặc tới việc chạy mô hình ONNX thật. Lý do là hiện chưa có m�
 dataset. Các lỗi D4-D10 được phát hiện trên dây chuyền huấn luyện chạy smoke-test với dữ
 liệu giả, không phải trên một lượt huấn luyện thật.
 
-**6. Chưa đo được ảnh hưởng định lượng của các lỗi hiệu năng.**
+**7. Chưa đo được ảnh hưởng định lượng của các lỗi hiệu năng.**
 Các lỗi A8 (giữ connection Hikari), A9 (thiếu timeout), G9 (gộp theo ngày ở JVM) và A7
 (buffer phình) đều là lỗi hiệu năng/tài nguyên, nhưng **[CẦN SỐ LIỆU]** cho mức độ ảnh
 hưởng: dự án chưa chạy đo tải nên không có con số về số phiên đồng thời tối đa trước và sau
 khi vá, cũng chưa có số liệu độ trễ end-to-end p50/p95. Phần mô tả trong bảng A.2 chỉ nêu
 cơ chế gây lỗi, không kèm số đo.
 
-**7. Số liệu duy nhất được đo tự động trong dự án là chất lượng ghép câu.**
+**8. Số liệu duy nhất được đo tự động trong dự án là chất lượng ghép câu, và phép đo còn dở dang.**
 `docs/report/data/sentence-eval.md` và `sentence-eval.json` do
 `training/eval/sentence_eval.py` sinh ra bằng cách gọi Gemini thật. Ba lỗi I1-I3 trong bảng
 A.2 chính là các lỗi của công cụ đo này — nghĩa là bản thân công cụ sinh số liệu cũng đã
-phải qua một vòng soát trước khi số liệu của nó được dùng.
+phải qua một vòng soát trước khi số liệu của nó được dùng. Cần nói rõ quy mô: bộ ca thử
+`training/eval/gloss_sequences.json` hiện có **30** chuỗi gloss (khoá `cases`, id 1-30),
+nhưng mới chạy được **4** ca thì cạn hạn mức miễn phí của mô hình ngôn ngữ
+(`docs/report/data/sentence-eval.json` chỉ có 4 bản ghi), nên mọi tỉ lệ sinh ra từ công cụ
+này đều là tỉ lệ trên **4/30** ca — một phép đo dở dang, chưa phải kết quả của cả bộ. Lưu ý
+thêm một chỗ chưa khớp: `docs/report/data/sentence-eval.md` hiện ghi "6 chuỗi gloss" và
+"4/6 ca" vì đó là sản phẩm của một lần chạy có tuỳ chọn `--limit 6`; con số đúng của bộ ca
+thử là 30, và tệp `.md` sẽ ghi lại đúng tổng khi script được chạy không kèm `--limit`.
