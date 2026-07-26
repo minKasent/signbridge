@@ -36,6 +36,24 @@ export default function Home() {
           >
             🎥 Thu thập dữ liệu
           </Link>
+          <Link
+            href="/video"
+            className="rounded-lg bg-teal-600 px-6 py-3 font-medium hover:bg-teal-500"
+          >
+            🎬 Dịch từ video
+          </Link>
+          <Link
+            href="/stats"
+            className="rounded-lg bg-rose-600 px-6 py-3 font-medium hover:bg-rose-500"
+          >
+            📊 Thống kê
+          </Link>
+          <Link
+            href="/admin"
+            className="rounded-lg bg-zinc-800 px-6 py-3 font-medium hover:bg-zinc-700"
+          >
+            🛠️ Quản trị từ điển
+          </Link>
         </div>
       </main>
     </div>

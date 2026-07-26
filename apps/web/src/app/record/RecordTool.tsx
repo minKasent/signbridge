@@ -25,9 +25,10 @@ function RecordToolInner() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
 
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [email, setEmail] = useState("admin@signbridge.vn");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [signs, setSigns] = useState<Sign[]>([]);
   const [query, setQuery] = useState(preselect);
@@ -43,7 +44,17 @@ function RecordToolInner() {
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) setUser(getUser());
+      if (cancelled) return;
+      // Chỉ ADMIN mới upload được clip — phiên USER (hoặc hết hạn) coi như chưa
+      // đăng nhập, không thì người dùng quay xong mới ăn 403 và mất công.
+      const restored = getUser();
+      if (restored && restored.role !== "ADMIN") {
+        logout();
+        setUser(null);
+        setMessage("Tài khoản này không có quyền quản trị — đăng nhập bằng tài khoản ADMIN.");
+        return;
+      }
+      setUser(restored);
     });
     return () => {
       cancelled = true;
@@ -98,6 +109,10 @@ function RecordToolInner() {
       disposed = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
     };
   }, [user]);
 
@@ -127,25 +142,46 @@ function RecordToolInner() {
       await new Promise((r) => setTimeout(r, 700));
     }
 
+    // Đọc lại stream SAU đếm ngược: người dùng có thể rời trang / rút webcam
+    // trong 2.1 giây đó — dùng streamRef cũ sẽ ném TypeError và kẹt phase mãi.
+    const stream = streamRef.current;
+    if (!stream) {
+      setPhase("idle");
+      setMessage("Mất kết nối camera — thử lại.");
+      return;
+    }
+
     setPhase("recording");
     chunksRef.current = [];
     const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
       ? "video/webm;codecs=vp9"
       : "video/webm";
-    const recorder = new MediaRecorder(streamRef.current, { mimeType });
+    const recorder = new MediaRecorder(stream, { mimeType });
     recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: "video/webm" });
       setClip(blob);
       setPhase("preview");
       if (previewRef.current) {
-        previewRef.current.src = URL.createObjectURL(blob);
+        // Thu hồi URL của lần quay trước, không thì mỗi lần quay lại rò một blob
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = URL.createObjectURL(blob);
+        previewRef.current.src = previewUrlRef.current;
       }
     };
     recorderRef.current = recorder;
     recorder.start();
     await new Promise((r) => setTimeout(r, RECORD_MS));
-    recorder.stop();
+    // stop() khi recorder đã dừng (camera rút giữa chừng) ném InvalidStateError
+    if (recorder.state !== "inactive") recorder.stop();
+  }
+
+  /** Token hết hạn/không đủ quyền → xóa phiên để form đăng nhập hiện lại. */
+  function handleAuthError() {
+    logout();
+    setUser(null);
+    setPhase("idle");
+    setMessage("Phiên đăng nhập đã hết hạn hoặc không đủ quyền — hãy đăng nhập lại.");
   }
 
   async function upload() {
@@ -159,6 +195,10 @@ function RecordToolInner() {
         headers: authHeader(),
         body: form,
       });
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const updated: Sign = await res.json();
       setSigns((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
@@ -190,6 +230,10 @@ function RecordToolInner() {
         headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ gloss, meaningVi: meaning, category: "TUDIEN" }),
       });
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+        return;
+      }
       if (!res.ok) throw new Error(res.status === 409 ? "Từ đã tồn tại" : `HTTP ${res.status}`);
       const created: Sign = await res.json();
       setSigns((prev) => [created, ...prev]);

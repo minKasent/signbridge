@@ -10,6 +10,7 @@ import { API_BASE } from "./landmarks";
 
 const TOKEN_KEY = "signbridge.token";
 const USER_KEY = "signbridge.user";
+const EXPIRES_KEY = "signbridge.expiresAt";
 
 export type AuthUser = { email: string; name: string; role: string };
 
@@ -24,6 +25,9 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   }
   const data = await res.json();
   localStorage.setItem(TOKEN_KEY, data.token);
+  // Token sống 24h — nhớ hạn để UI tự coi là đã đăng xuất thay vì để người dùng
+  // quay xong clip rồi mới ăn 401 và mất công.
+  localStorage.setItem(EXPIRES_KEY, String(Date.now() + (data.expiresInSeconds ?? 0) * 1000));
   const user: AuthUser = { email: data.email, name: data.name, role: data.role };
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   return user;
@@ -32,14 +36,27 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 export function logout(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(EXPIRES_KEY);
+}
+
+/** Phiên đã quá hạn token? (thiếu mốc hạn → coi như còn hạn, tránh đá nhầm phiên cũ) */
+export function isExpired(): boolean {
+  if (typeof window === "undefined") return false;
+  const raw = localStorage.getItem(EXPIRES_KEY);
+  return raw !== null && Number(raw) <= Date.now();
 }
 
 export function getToken(): string | null {
-  return typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY);
+  if (typeof window === "undefined" || isExpired()) return null;
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function getUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
+  if (isExpired()) {
+    logout();
+    return null;
+  }
   const raw = localStorage.getItem(USER_KEY);
   try {
     return raw ? (JSON.parse(raw) as AuthUser) : null;

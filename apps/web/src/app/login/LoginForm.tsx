@@ -13,7 +13,7 @@ export default function LoginForm() {
   const router = useRouter();
   const { auth, ready, login, logout } = useAuth();
 
-  const [email, setEmail] = useState("admin@signbridge.vn");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -90,11 +90,6 @@ export default function LoginForm() {
             </button>
           </div>
         )}
-
-        <p className="mt-4 text-xs text-zinc-500">
-          Tài khoản dev: <span className="font-mono">admin@signbridge.vn</span> /{" "}
-          <span className="font-mono">signbridge-admin-dev</span>
-        </p>
       </div>
     </div>
   );

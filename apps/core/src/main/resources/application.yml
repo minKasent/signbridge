@@ -28,6 +28,9 @@ spring:
       # Xóa bản ghi sự kiện sau khi xử lý xong — mỗi gloss nhận diện được sinh
       # một dòng event_publication, giữ lại hết sẽ phình vô hạn trên hot path.
       completion-mode: delete
+      # Listener giờ ghi DB (analytics) nên có thể fail giữa chừng: phát lại các
+      # sự kiện chưa hoàn tất khi khởi động, không thì chúng nằm lại vĩnh viễn.
+      republish-outstanding-events-on-restart: true
 
 server:
   port: 8080

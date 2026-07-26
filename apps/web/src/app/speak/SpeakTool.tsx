@@ -68,6 +68,14 @@ export default function SpeakTool() {
   const [listening, setListening] = useState(false);
   const [message, setMessage] = useState("");
 
+  // Rời trang khi đang bật mic → phải tắt nhận dạng, không thì micro còn nóng
+  useEffect(() => {
+    return () => {
+      recognizerRef.current?.stop();
+      recognizerRef.current = null;
+    };
+  }, []);
+
   useEffect(() => {
     fetch(`${API_BASE}/api/signs`)
       .then((r) => r.json())
@@ -76,7 +84,9 @@ export default function SpeakTool() {
         const letters = new Map<string, Sign>();
         for (const s of signs) {
           const key = normalize(s.meaningVi);
-          if (!phrases.has(key) || (s.clipUrl && !phrases.get(key)?.clipUrl)) phrases.set(key, s);
+          // CHỈ nhận từ CÓ clip: từ có trong từ điển mà chưa có clip thì phát
+          // được gì đâu — để nó rơi xuống nhánh đánh vần mới đúng.
+          if (s.clipUrl && !phrases.has(key)) phrases.set(key, s);
           if (key.length === 1 && s.clipUrl) letters.set(key, s);
         }
         phraseMapRef.current = phrases;
@@ -289,6 +299,8 @@ export default function SpeakTool() {
           <video
             ref={videoRef}
             onEnded={onClipEnded}
+            // Clip lỗi (404/codec) không được làm đứng cả chuỗi — nhảy sang clip kế
+            onError={onClipEnded}
             controls
             muted
             className="w-96 rounded-xl bg-zinc-900"

@@ -39,7 +39,12 @@ class SecurityConfig {
 						// /error: dispatch nội bộ khi controller trả 4xx/5xx — không mở thì
 						// mọi lỗi validation bị Security chặn thành 401 (tìm ra qua test E2E)
 						.requestMatchers("/api/auth/**", "/ws/**", "/actuator/health", "/error").permitAll()
+						// Actuator còn lại (modulith, info, env…) lộ cấu trúc nội bộ —
+						// USER tự đăng ký không được xem, chỉ ADMIN
+						.requestMatchers("/actuator/**").hasRole("ADMIN")
 						.requestMatchers(HttpMethod.GET, "/api/signs/**", "/clips/**", "/api/dataset/stats").permitAll()
+						// Dashboard /stats đọc số liệu gộp (không dữ liệu cá nhân) — theo merge-notes B
+						.requestMatchers(HttpMethod.GET, "/api/analytics/**").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/dataset/samples").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/signs/**").hasRole("ADMIN")
 						.requestMatchers(HttpMethod.PUT, "/api/signs/**").hasRole("ADMIN")

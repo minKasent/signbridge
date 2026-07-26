@@ -68,16 +68,26 @@ export default function VideoTranslateTool() {
   }, []);
 
   const onFrame = useCallback((frame: number[]) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      frameBufferRef.current.push(frame);
-      if (frameBufferRef.current.length >= FRAME_BATCH) {
-        wsRef.current.send(JSON.stringify({ type: "frames", frames: frameBufferRef.current }));
-        frameBufferRef.current = [];
-      }
+    const ws = wsRef.current;
+    if (!ws) return;
+    // Sau khi mở lại socket (đổi file / dịch lại), video phát ngay trong khi
+    // socket còn CONNECTING — đệm frame lại thay vì vứt, onopen sẽ xả đi.
+    if (ws.readyState !== WebSocket.OPEN && ws.readyState !== WebSocket.CONNECTING) return;
+    frameBufferRef.current.push(frame);
+    if (frameBufferRef.current.length >= FRAME_BATCH && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "frames", frames: frameBufferRef.current }));
+      frameBufferRef.current = [];
+    }
+    // Trần đệm khi socket lâu mở: giữ tối đa 2 lô, bỏ frame cũ nhất
+    if (frameBufferRef.current.length > FRAME_BATCH * 2) {
+      frameBufferRef.current = frameBufferRef.current.slice(-FRAME_BATCH * 2);
     }
   }, []);
 
   const { status, ready, fps } = useVideoFilePipeline({ videoRef, canvasRef, onFrame });
+
+  // Mốc thời gian đã xử lý — dùng để phát hiện tua lùi trong onSeeked
+  const lastTimeRef = useRef(0);
 
   function toggleBackend() {
     if (wsRef.current) {
@@ -112,6 +122,11 @@ export default function VideoTranslateTool() {
     ws.onopen = () => {
       if (wsRef.current !== ws) return;
       setWsConnected(true);
+      // Xả các frame đã đệm trong lúc chờ kết nối
+      if (frameBufferRef.current.length > 0) {
+        ws.send(JSON.stringify({ type: "frames", frames: frameBufferRef.current }));
+        frameBufferRef.current = [];
+      }
     };
     ws.onclose = () => {
       if (wsRef.current !== ws) return;
@@ -161,6 +176,21 @@ export default function VideoTranslateTool() {
     frameBufferRef.current = [];
     const canvas = canvasRef.current;
     if (canvas) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  /**
+   * Tua LÙI nghĩa là đoạn vừa xử lý sẽ chạy lại: nếu không reset, gloss của đoạn
+   * đó vào đệm server lần thứ hai và câu ghép ra bị lặp từ.
+   */
+  function onSeeked() {
+    const video = videoRef.current;
+    if (!video || !wsRef.current) return;
+    if (video.currentTime < lastTimeRef.current - 0.05) {
+      resetBackendSession();
+      setGlosses([]);
+      setSentences([]);
+    }
+    lastTimeRef.current = video.currentTime;
   }
 
   function togglePlay() {
@@ -223,6 +253,11 @@ export default function VideoTranslateTool() {
               controls
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
+              onSeeked={onSeeked}
+              onTimeUpdate={() => {
+                const video = videoRef.current;
+                if (video && !video.seeking) lastTimeRef.current = video.currentTime;
+              }}
               onEnded={flushTranslation}
               className="max-h-[60vh] rounded-lg"
             />
