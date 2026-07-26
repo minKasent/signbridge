@@ -72,23 +72,29 @@ def build_frame(hand_result, pose_result) -> np.ndarray:
     return frame
 
 
+# MediaPipe VIDEO mode bắt buộc timestamp tăng đơn điệu TRÊN CÙNG một landmarker —
+# reset về 0 ở video kế tiếp là văng lỗi. Dùng đồng hồ toàn cục chạy xuyên các video.
+_CLOCK_MS = 0
+
+
 def extract_video(video_path: Path, hand, pose) -> np.ndarray | None:
+    global _CLOCK_MS
+    _CLOCK_MS += 1000  # nhảy 1s giữa các video → tracker không "kéo" tay video trước sang
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         return None
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    step_ms = max(1, int(1000 / fps))
     frames: list[np.ndarray] = []
-    index = 0
     while True:
         ok, bgr = cap.read()
         if not ok:
             break
-        timestamp_ms = int(index * 1000 / fps)
+        _CLOCK_MS += step_ms
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
-        hand_result = hand.detect_for_video(image, timestamp_ms)
-        pose_result = pose.detect_for_video(image, timestamp_ms)
+        hand_result = hand.detect_for_video(image, _CLOCK_MS)
+        pose_result = pose.detect_for_video(image, _CLOCK_MS)
         frames.append(build_frame(hand_result, pose_result))
-        index += 1
     cap.release()
     return np.stack(frames) if frames else None
 
@@ -118,7 +124,8 @@ def main() -> None:
     parser.add_argument("--csv", type=Path, required=True, help="File split CSV (label_1_200)")
     parser.add_argument("--models", type=Path, required=True, help="Thư mục chứa *.task (dùng chung với web)")
     parser.add_argument("--out", type=Path, required=True, help="Thư mục ghi .npy")
-    parser.add_argument("--video-col", default="video_path")
+    # Mặc định khớp CSV của Multi-VSL (cột: name,label,video_lb_id)
+    parser.add_argument("--video-col", default="name")
     parser.add_argument("--label-col", default="label")
     args = parser.parse_args()
 
