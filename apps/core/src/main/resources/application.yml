@@ -32,6 +32,11 @@ spring:
 server:
   port: 8080
 
+spring.servlet.multipart:
+  # Clip ký hiệu từ điển ~0.3-3MB; mặc định 1MB làm rớt upload (HTTP 413)
+  max-file-size: 25MB
+  max-request-size: 26MB
+
 management:
   endpoints:
     web:

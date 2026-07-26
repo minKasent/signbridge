@@ -152,7 +152,18 @@ Video → MediaPipe → chuỗi keypoint (T × N điểm × 3)
 > race onclose WebSocket · gloss không kiểm theo từ điển · ghi file không atomic · event_publication
 > phình vô hạn · tên clip theo gloss gây ghi đè · 409 trùng email · rò WebGL context.
 >
-> Còn lại của tuần 2-3: tải Multi-VSL 200 + trích landmark (cần Colab) — và nhánh [HỌC] Python/LSTM.
+> ✅ **Tuần 10 (chiều ngược) xong sớm**: import 30 clip từ **Từ điển ngôn ngữ ký hiệu quốc gia
+> QIPEDC** (HF Lakeserl/SignConnect, 4.362 video) vào module dictionary qua API thật; endpoint
+> `/api/signs/compose` khớp-cụm-dài-nhất ("đau bụng" ăn nguyên cụm) + báo từ thiếu trung thực;
+> trang **/speak**: gõ/nói tiếng Việt (Web Speech vi-VN) → phát tuần tự clip ký hiệu.
+>
+> ⚠️ **Dataset pivot (26/07)**: folder Drive công khai Multi-VSL chỉ là demo ~1% → chiến lược mới:
+> (1) user request **VSL400** trên Zenodo (24.753 lượt ký × 3 view, 400 gloss, 28 người ký,
+> CC-BY-4.0, 961 người đã được cấp); (2) email tác giả Multi-VSL (docs/EMAIL-MULTIVSL.md);
+> (3) dự phòng: tự thu qua /collect (converter sẵn sàng). Dây chuyền exp01/exp02 dùng nguyên
+> cho VSL400 khi được cấp quyền.
+>
+> Còn lại của tuần 2-3: chờ quyền dataset + nhánh [HỌC] Python/LSTM.
 
 | Tuần | [LÀM] Sản phẩm | [HỌC] Kiến thức |
 |---|---|---|

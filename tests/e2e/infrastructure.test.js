@@ -82,6 +82,14 @@ async function main() {
   const stats = await res.json();
   check("stats có XIN_CHAO ≥ 1", res.status === 200 && (stats.XIN_CHAO ?? 0) >= 1, JSON.stringify(stats).slice(0, 80));
 
+  // --- 3b. Chiều ngược: câu → chuỗi ký hiệu ---
+  console.log("3b. Compose (chiều ngược)");
+  res = await fetch(`${BASE}/api/signs/compose?text=${encodeURIComponent("Tôi bị đau bụng!")}`);
+  const composed = await res.json();
+  check("compose khớp cụm 'đau bụng' nguyên cụm", res.status === 200 &&
+    composed.items.some((s) => s.meaningVi === "đau bụng"), JSON.stringify(composed).slice(0, 100));
+  check("compose báo từ thiếu ('bị')", composed.missing.includes("bị"));
+
   // --- 4. WebSocket ---
   console.log("4. WebSocket");
   const ok = await wsProbe((ws) => {

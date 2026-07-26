@@ -26,10 +26,17 @@ class SignController {
 
 	private final SignRepository signs;
 	private final ClipStorage clipStorage;
+	private final SignComposer composer;
 
 	@GetMapping
 	List<Sign> list(@RequestParam(required = false) String category) {
 		return category == null ? signs.findAll() : signs.findByCategoryOrderByGloss(category);
+	}
+
+	/** Chiều ngược: câu tiếng Việt → chuỗi ký hiệu (+ từ không dịch được). */
+	@GetMapping("/compose")
+	SignComposer.ComposeResult compose(@RequestParam String text) {
+		return composer.compose(text);
 	}
 
 	@PostMapping

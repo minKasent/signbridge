@@ -19,6 +19,12 @@ export default function Home() {
             🖐️ Demo phiên dịch
           </Link>
           <Link
+            href="/speak"
+            className="rounded-lg bg-amber-600 px-6 py-3 font-medium hover:bg-amber-500"
+          >
+            🗣️ Nói → Ký hiệu
+          </Link>
+          <Link
             href="/dictionary"
             className="rounded-lg bg-sky-600 px-6 py-3 font-medium hover:bg-sky-500"
           >
