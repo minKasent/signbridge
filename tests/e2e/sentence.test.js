@@ -57,7 +57,22 @@ async function main() {
     console.log(`     → "${s.text}"  [nguồn: ${s.source}]`);
     console.log(`       gloss: ${s.glosses.join(" / ")}`);
     check("câu không rỗng", typeof s.text === "string" && s.text.trim().length > 0);
-    check("câu do LLM ghép (không phải dự phòng)", s.source === "llm" || s.source === "cache", `(source=${s.source})`);
+    // Giữ NGHIÊM: rơi xuống "fallback" nghĩa là khâu ghép câu bằng mô hình ngôn ngữ
+    // KHÔNG chạy — đúng thứ đồ án cần chứng minh. Đừng nới lỏng thành "chấp nhận
+    // fallback" để cổng xanh đẹp, vì lúc bảo vệ hỏng là hỏng thật.
+    check(
+      "câu do LLM ghép (không phải dự phòng)",
+      s.source === "llm" || s.source === "cache",
+      `(source=${s.source})`
+    );
+    if (s.source === "fallback") {
+      console.log(
+        "       ↳ Nguyên nhân thường gặp: cạn hạn mức LLM (gói miễn phí chỉ 20 lượt/NGÀY)\n" +
+        "         hoặc thiếu GEMINI_API_KEY. Xem docs/report/data/rui-ro-quota-llm.md.\n" +
+        "         Chuỗi gloss có trong sentence-cache-seed.json thì không bị ảnh hưởng —\n" +
+        "         test này gửi landmark ngẫu nhiên nên gloss ra ngẫu nhiên, không trúng cache."
+      );
+    }
     check("có kèm danh sách gloss gốc", Array.isArray(s.glosses) && s.glosses.length > 0);
   }
 
