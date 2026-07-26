@@ -1,3 +1,6 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
 import { API_BASE } from "./landmarks";
 
 /**
@@ -48,4 +51,41 @@ export function getUser(): AuthUser | null {
 export function authHeader(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Hook phiên đăng nhập cho client component. `ready` = đã đọc xong localStorage
+ * sau hydrate — guard trang admin phải chờ ready mới quyết định redirect,
+ * không thì lần render đầu (auth còn null) sẽ đá nhầm người đã đăng nhập.
+ */
+export function useAuth() {
+  const [auth, setAuth] = useState<AuthUser | null>(null);
+  const [ready, setReady] = useState(false);
+
+  // queueMicrotask: không setState đồng bộ trong effect, không lệch hydration
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setAuth(getUser());
+        setReady(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const doLogin = useCallback(async (email: string, password: string) => {
+    const user = await login(email, password);
+    setAuth(user);
+    return user;
+  }, []);
+
+  const doLogout = useCallback(() => {
+    logout();
+    setAuth(null);
+  }, []);
+
+  return { auth, ready, login: doLogin, logout: doLogout };
 }
