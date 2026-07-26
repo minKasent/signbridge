@@ -19,7 +19,7 @@
 
 Dear Multi-VSL authors,
 
-My name is Khoa, an undergraduate student in Vietnam. I am working on my graduation
+My name is Nguyen Dang Khoa, an undergraduate student at Ho Chi Minh City University of Natural Resources and Environment (HCMUNRE), Vietnam. I am working on my graduation
 thesis: a real-time two-way Vietnamese Sign Language translation system (webcam →
 MediaPipe landmarks → Transformer recognition → natural Vietnamese sentence via LLM),
 and I would like to train and benchmark on Multi-VSL 200 with the signer-independent
@@ -41,8 +41,9 @@ Thank you very much for releasing this valuable resource for Vietnamese sign lan
 research.
 
 Best regards,
-Khoa
-[Trường đại học] — [email]
+Nguyen Dang Khoa
+Ho Chi Minh City University of Natural Resources and Environment (HCMUNRE)
+1150080099@sv.hcmunre.edu.vn
 GitHub (thesis project): https://github.com/minKasent/signbridge
 
 ---
@@ -51,7 +52,7 @@ GitHub (thesis project): https://github.com/minKasent/signbridge
 
 Kính gửi nhóm tác giả Multi-VSL,
 
-Em là Khoa, sinh viên đang làm đồ án tốt nghiệp về hệ thống dịch ngôn ngữ ký hiệu
+Em là Nguyễn Đăng Khoa, sinh viên Trường Đại học Tài nguyên và Môi trường TP.HCM (HCMUNRE), đang làm đồ án tốt nghiệp về hệ thống dịch ngôn ngữ ký hiệu
 tiếng Việt hai chiều thời gian thực. Em muốn huấn luyện và đánh giá trên Multi-VSL 200
 theo đúng split trong bài báo WACV 2025 của nhóm.
 
@@ -67,4 +68,5 @@ Em cảm ơn nhóm rất nhiều vì đã công bố một tài nguyên quý cho
 ký hiệu tiếng Việt.
 
 Trân trọng,
-Khoa
+Nguyễn Đăng Khoa
+Trường ĐH Tài nguyên và Môi trường TP.HCM — 1150080099@sv.hcmunre.edu.vn
