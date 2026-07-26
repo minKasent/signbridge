@@ -1,0 +1,23 @@
+== CoreApplication
+plantuml::components.puml[,,format=svg]
+
+== Dictionary
+plantuml::module-dictionary.puml[,,format=svg]
+include::module-dictionary.adoc[]
+
+== Identity
+plantuml::module-identity.puml[,,format=svg]
+include::module-identity.adoc[]
+
+== Dataset
+plantuml::module-dataset.puml[,,format=svg]
+include::module-dataset.adoc[]
+
+== Translation
+plantuml::module-translation.puml[,,format=svg]
+include::module-translation.adoc[]
+
+== Analytics
+plantuml::module-analytics.puml[,,format=svg]
+include::module-analytics.adoc[]
+

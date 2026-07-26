@@ -1,0 +1,9 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Base package
+|`vn.signbridge.identity`
+|Aggregate roots
+|* `v.s.i.User`
+|Events listened to
+|* `org.springframework.boot.context.event.ApplicationReadyEvent` 
+|===

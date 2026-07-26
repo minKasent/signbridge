@@ -1,0 +1,9 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Base package
+|`vn.signbridge.dataset`
+|Bean references
+|* `v.s.d.SignCatalog` (in Dictionary)
+|Aggregate roots
+|* `v.s.d.SampleRecord`
+|===

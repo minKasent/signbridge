@@ -1,0 +1,7 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Base package
+|`vn.signbridge.translation`
+|Bean references
+|* `v.s.d.SignCatalog` (in Dictionary)
+|===

@@ -1,0 +1,42 @@
+{
+  "_mo_ta": "Bộ 30 chuỗi gloss dùng đánh giá chất lượng khâu ghép câu (gloss → tiếng Việt).",
+  "_nguon_tu_vung": "34 gloss của bộ demo: 30 từ import từ QIPEDC (training/preprocess/import_signconnect.py) + 4 gloss gốc TOI/CAM_ON/BAC_SI/DAU.",
+  "_cach_chon": "Mỗi chuỗi mô phỏng đầu ra THẬT của bộ nhận diện: chỉ chứa gloss có trong từ vựng, không có hư từ (bị/là/của/với), trật tự theo ngữ pháp VSL. Nhóm E cố ý chứa gloss lặp — lỗi phổ biến nhất của cửa sổ trượt.",
+  "_tham_chieu": "cau_tham_chieu là câu do người viết đặt ra làm chuẩn so sánh, KHÔNG đưa cho mô hình.",
+  "cases": [
+    { "id": 1,  "nhom": "A-chao-hoi", "glosses": ["XIN_CHAO", "BAC_SI"], "cau_tham_chieu": "Xin chào bác sĩ." },
+    { "id": 2,  "nhom": "A-chao-hoi", "glosses": ["XIN_CHAO", "CO_GIAO"], "cau_tham_chieu": "Xin chào cô giáo." },
+    { "id": 3,  "nhom": "A-chao-hoi", "glosses": ["CAM_ON", "BAN"], "cau_tham_chieu": "Cảm ơn bạn." },
+    { "id": 4,  "nhom": "A-chao-hoi", "glosses": ["XIN_LOI", "TOI", "DI"], "cau_tham_chieu": "Xin lỗi, tôi phải đi." },
+    { "id": 5,  "nhom": "A-chao-hoi", "glosses": ["TAM_BIET", "CO_GIAO"], "cau_tham_chieu": "Tạm biệt cô giáo." },
+
+    { "id": 6,  "nhom": "B-y-te", "glosses": ["TOI", "DAU_BUNG"], "cau_tham_chieu": "Tôi bị đau bụng." },
+    { "id": 7,  "nhom": "B-y-te", "glosses": ["TOI", "SOT"], "cau_tham_chieu": "Tôi bị sốt." },
+    { "id": 8,  "nhom": "B-y-te", "glosses": ["TOI", "MUON", "KHAM_BENH"], "cau_tham_chieu": "Tôi muốn đi khám bệnh." },
+    { "id": 9,  "nhom": "B-y-te", "glosses": ["BAC_SI", "KHAM_BENH", "BENH_NHAN"], "cau_tham_chieu": "Bác sĩ khám bệnh cho bệnh nhân." },
+    { "id": 10, "nhom": "B-y-te", "glosses": ["TOI", "DAU_TAY", "DAU_CHAN"], "cau_tham_chieu": "Tôi bị đau tay và đau chân." },
+    { "id": 11, "nhom": "B-y-te", "glosses": ["TOI", "SOT", "MUON", "KHAM_BENH"], "cau_tham_chieu": "Tôi bị sốt, tôi muốn đi khám bệnh." },
+    { "id": 12, "nhom": "B-y-te", "glosses": ["BENH_NHAN", "DAU_MAT"], "cau_tham_chieu": "Bệnh nhân bị đau mắt." },
+    { "id": 13, "nhom": "B-y-te", "glosses": ["TOI", "MUON", "GIUP_DO"], "cau_tham_chieu": "Tôi cần được giúp đỡ." },
+    { "id": 14, "nhom": "B-y-te", "glosses": ["BAC_SI", "CHUA_BENH", "TOI"], "cau_tham_chieu": "Bác sĩ chữa bệnh cho tôi." },
+    { "id": 15, "nhom": "B-y-te", "glosses": ["TOI", "KHOE_MANH"], "cau_tham_chieu": "Tôi khoẻ." },
+
+    { "id": 16, "nhom": "C-hang-ngay", "glosses": ["TOI", "DI_HOC"], "cau_tham_chieu": "Tôi đi học." },
+    { "id": 17, "nhom": "C-hang-ngay", "glosses": ["CHA_ME", "TOI", "LAM_VIEC"], "cau_tham_chieu": "Bố mẹ tôi đi làm." },
+    { "id": 18, "nhom": "C-hang-ngay", "glosses": ["TOI", "MUON", "NOI_CHUYEN", "BAN"], "cau_tham_chieu": "Tôi muốn nói chuyện với bạn." },
+    { "id": 19, "nhom": "C-hang-ngay", "glosses": ["TOI", "HIEU"], "cau_tham_chieu": "Tôi hiểu rồi." },
+    { "id": 20, "nhom": "C-hang-ngay", "glosses": ["BAN", "DOI", "TOI"], "cau_tham_chieu": "Bạn đợi tôi nhé." },
+    { "id": 21, "nhom": "C-hang-ngay", "glosses": ["TOI", "NGHE", "BAN", "NOI_CHUYEN"], "cau_tham_chieu": "Tôi nghe bạn nói." },
+    { "id": 22, "nhom": "C-hang-ngay", "glosses": ["TOI_YEU_BAN"], "cau_tham_chieu": "Tôi yêu bạn." },
+    { "id": 23, "nhom": "C-hang-ngay", "glosses": ["BO", "TOI", "LAM_VIEC"], "cau_tham_chieu": "Bố tôi đang làm việc." },
+    { "id": 24, "nhom": "C-hang-ngay", "glosses": ["TOI", "VUI_MUNG", "BAN"], "cau_tham_chieu": "Tôi rất vui được gặp bạn." },
+
+    { "id": 25, "nhom": "D-cau-hoi", "glosses": ["BAN", "TEN_LA_GI"], "cau_tham_chieu": "Bạn tên là gì?" },
+    { "id": 26, "nhom": "D-cau-hoi", "glosses": ["BAN", "DI_HOC", "DUNG_KHONG"], "cau_tham_chieu": "Bạn đi học đúng không?" },
+    { "id": 27, "nhom": "D-cau-hoi", "glosses": ["BAN", "KHOE_MANH", "DUNG_KHONG"], "cau_tham_chieu": "Bạn khoẻ không?" },
+    { "id": 28, "nhom": "D-cau-hoi", "glosses": ["BAN", "HIEU", "DUNG_KHONG"], "cau_tham_chieu": "Bạn hiểu không?" },
+
+    { "id": 29, "nhom": "E-nhieu", "glosses": ["TOI", "TOI", "DAU_BUNG"], "cau_tham_chieu": "Tôi bị đau bụng.", "ghi_chu": "gloss TOI lặp do cửa sổ trượt — mô hình phải bỏ bớt, không được viết 'Tôi tôi'" },
+    { "id": 30, "nhom": "E-nhieu", "glosses": ["XIN_CHAO", "XIN_CHAO", "BAC_SI"], "cau_tham_chieu": "Xin chào bác sĩ.", "ghi_chu": "gloss XIN_CHAO lặp" }
+  ]
+}

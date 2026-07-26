@@ -1,0 +1,30 @@
+@startuml
+title <size:24>Translation</size>
+
+set separator none
+top to bottom direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+!include <C4/C4_Component>
+
+System_Boundary("CoreApplication_boundary", "CoreApplication", $tags="") {
+  Container_Boundary("CoreApplication.CoreApplication_boundary", "CoreApplication", $tags="") {
+    Component(CoreApplication.CoreApplication.Dictionary, "Dictionary", $techn="Module", $descr="", $tags="", $link="")
+    Component(CoreApplication.CoreApplication.Translation, "Translation", $techn="Module", $descr="", $tags="", $link="")
+  }
+
+}
+
+Rel(CoreApplication.CoreApplication.Translation, CoreApplication.CoreApplication.Dictionary, "uses", $techn="", $tags="", $link="")
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml

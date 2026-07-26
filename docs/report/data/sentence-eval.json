@@ -1,0 +1,73 @@
+[
+  {
+    "id": 1,
+    "nhom": "A-chao-hoi",
+    "glosses": [
+      "XIN_CHAO",
+      "BAC_SI"
+    ],
+    "cau_tham_chieu": "Xin chào bác sĩ.",
+    "cau_he_thong": "Xin chào bác sĩ.",
+    "do_tre_ms": 2645,
+    "phu_noi_dung": true,
+    "gloss_thieu": [],
+    "khong_bia": true,
+    "tu_la": [],
+    "mot_cau": true,
+    "lap_tu": false
+  },
+  {
+    "id": 2,
+    "nhom": "A-chao-hoi",
+    "glosses": [
+      "XIN_CHAO",
+      "CO_GIAO"
+    ],
+    "cau_tham_chieu": "Xin chào cô giáo.",
+    "cau_he_thong": "Xin chào cô giáo.",
+    "do_tre_ms": 3433,
+    "phu_noi_dung": true,
+    "gloss_thieu": [],
+    "khong_bia": true,
+    "tu_la": [],
+    "mot_cau": true,
+    "lap_tu": false
+  },
+  {
+    "id": 3,
+    "nhom": "A-chao-hoi",
+    "glosses": [
+      "CAM_ON",
+      "BAN"
+    ],
+    "cau_tham_chieu": "Cảm ơn bạn.",
+    "cau_he_thong": "Cảm ơn bạn.",
+    "do_tre_ms": 2432,
+    "phu_noi_dung": true,
+    "gloss_thieu": [],
+    "khong_bia": true,
+    "tu_la": [],
+    "mot_cau": true,
+    "lap_tu": false
+  },
+  {
+    "id": 4,
+    "nhom": "A-chao-hoi",
+    "glosses": [
+      "XIN_LOI",
+      "TOI",
+      "DI"
+    ],
+    "cau_tham_chieu": "Xin lỗi, tôi phải đi.",
+    "cau_he_thong": "Xin lỗi, tôi đi đây.",
+    "do_tre_ms": 3195,
+    "phu_noi_dung": true,
+    "gloss_thieu": [],
+    "khong_bia": false,
+    "tu_la": [
+      "đây"
+    ],
+    "mot_cau": true,
+    "lap_tu": false
+  }
+]

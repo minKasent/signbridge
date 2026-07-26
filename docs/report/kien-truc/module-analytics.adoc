@@ -1,0 +1,7 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Base package
+|`vn.signbridge.analytics`
+|Events listened to
+|* `v.s.t.GlossRecognized` (async) 
+|===

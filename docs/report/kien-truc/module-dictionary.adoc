@@ -1,0 +1,14 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Base package
+|`vn.signbridge.dictionary`
+|Spring components
+|_Services_
+
+* `v.s.d.SignCatalog` (via `v.s.d.SignCatalogImpl`)
+* `v.s.d.SignComposer`
+|Aggregate roots
+|* `v.s.d.Sign`
+|Events listened to
+|* `org.springframework.boot.context.event.ApplicationReadyEvent` 
+|===
