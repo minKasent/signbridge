@@ -98,6 +98,9 @@ def make_gloss(label: str, taken: set[str]) -> str:
     return gloss
 
 
+_EXISTING_GLOSSES: set[str] = set()
+
+
 def full_vocab() -> list[tuple[str, str, str, str]]:
     """Toàn bộ kho QIPEDC: mỗi từ một clip (ưu tiên biến thể B > không hậu tố > N > T)."""
     import csv
@@ -113,7 +116,8 @@ def full_vocab() -> list[tuple[str, str, str, str]]:
         stem = video.rsplit(".", 1)[0]
         return {"B": 0, "N": 2, "T": 3}.get(stem[-1], 1)
 
-    taken: set[str] = set()
+    # Seed bằng gloss ĐÃ CÓ trong DB — chạy lại sau khi bị ngắt sẽ không đụng slug cũ
+    taken: set[str] = set(_EXISTING_GLOSSES)
     vocab = []
     for label, videos in sorted(by_label.items()):
         video = sorted(videos, key=preference)[0]
@@ -131,21 +135,33 @@ def main() -> None:
 
     token = api(args.api, "/api/auth/login", ADMIN)["token"]
     existing = {s["gloss"]: s for s in api(args.api, "/api/signs")}
+    _EXISTING_GLOSSES.update(existing)
 
     vocab = VOCAB
     if args.all:
         existing_meanings = {s["meaningVi"].strip().lower() for s in existing.values()}
-        vocab = [(g, m, c, v) for g, m, c, v in full_vocab()
-                 if m.strip().lower() not in existing_meanings]
+        seen_meanings: set[str] = set()
+        vocab = []
+        for g, m, c, v in full_vocab():
+            key = m.strip().lower()
+            if key not in existing_meanings and key not in seen_meanings:
+                seen_meanings.add(key)
+                vocab.append((g, m, c, v))
         print(f"Chế độ --all: {len(vocab)} từ mới cần import")
 
     done = skipped = failed = 0
     for gloss, meaning, category, video_file in vocab:
         sign = existing.get(gloss)
         if sign is None:
-            sign = api(args.api, "/api/signs",
-                       {"gloss": gloss, "meaningVi": meaning, "category": category}, token)
-            print(f"+ Tạo ký hiệu {gloss} ({meaning})")
+            try:
+                sign = api(args.api, "/api/signs",
+                           {"gloss": gloss, "meaningVi": meaning, "category": category}, token)
+                if not args.all:
+                    print(f"+ Tạo ký hiệu {gloss} ({meaning})")
+            except Exception as e:  # noqa: BLE001 — trùng slug từ đợt chạy dở → bỏ qua, đi tiếp
+                print(f"✗ Không tạo được {gloss} ({meaning}): {e}")
+                failed += 1
+                continue
         if video_file is None:
             continue
         if sign.get("clipUrl") and not args.force:
