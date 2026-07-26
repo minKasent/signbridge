@@ -99,6 +99,9 @@ def main() -> None:
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--run-name", default="baseline-transformer")
     parser.add_argument("--resume", action="store_true", help="Nối tiếp từ last.pt (Colab rớt phiên)")
+    parser.add_argument("--init-from", type=Path, default=None,
+                        help="Checkpoint pretrain (best.pt của đợt VOYA): nạp encoder, "
+                             "BỎ head phân loại (số lớp khác), nên dùng kèm --lr thấp hơn")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -111,8 +114,10 @@ def main() -> None:
         "train": VslSequenceDataset(args.data / "train", labels, window=args.window,
                                     train=True, no_sign_per_class=args.no_sign_per_class),
         "val": VslSequenceDataset(args.data / "val", labels, window=args.window),
-        "test": VslSequenceDataset(args.data / "test", labels, window=args.window),
     }
+    # VOYA pretraining chỉ có train/val (không có test đúng nghĩa — 1 người ký)
+    if (args.data / "test").is_dir():
+        datasets["test"] = VslSequenceDataset(args.data / "test", labels, window=args.window)
     loaders = {
         split: DataLoader(ds, batch_size=args.batch, shuffle=(split == "train"),
                           num_workers=args.workers, pin_memory=(device.type == "cuda"))
@@ -125,6 +130,15 @@ def main() -> None:
     model = SignTransformer(num_classes, FRAME_DIMS, args.d_model, args.layers,
                             max_len=max(64, args.window)).to(device)
     print(f"Tham số: {sum(p.numel() for p in model.parameters()):,}")
+
+    if args.init_from is not None:
+        state = torch.load(args.init_from, map_location=device)["state_dict"]
+        # Bỏ head: số lớp pretrain khác số lớp fine-tune; encoder + input_proj giữ nguyên.
+        # Kiến trúc (d_model/layers) phải khớp — lệch là load_state_dict báo lỗi ngay.
+        encoder_state = {k: v for k, v in state.items() if not k.startswith("head.")}
+        missing, unexpected = model.load_state_dict(encoder_state, strict=False)
+        assert not unexpected, f"Checkpoint có key lạ: {unexpected[:5]}"
+        print(f"Nạp pretrain từ {args.init_from} — head khởi tạo mới ({len(missing)} tham số)")
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
@@ -178,12 +192,16 @@ def main() -> None:
 
     # Đánh giá cuối với checkpoint tốt nhất — 3 nhóm số liệu tách bạch
     model.load_state_dict(torch.load(args.out / "best.pt", map_location=device)["state_dict"])
-    test1, test5 = evaluate(model, loaders["test"], device)
-    test_ns = evaluate_no_sign(model, datasets["test"], device)
-    test_stream = evaluate_streaming(model, datasets["test"], device, args.window)
-    print(f"\nTEST (signer-independent, mẫu thật): top1 {test1:.3f} | top5 {test5:.3f}")
-    print(f"TEST NO_SIGN recall: {test_ns:.3f}")
-    print(f"TEST streaming (cửa sổ trượt {args.window}/{SERVE_STRIDE} + vote): {test_stream:.3f}")
+    if "test" in datasets:
+        test1, test5 = evaluate(model, loaders["test"], device)
+        test_ns = evaluate_no_sign(model, datasets["test"], device)
+        test_stream = evaluate_streaming(model, datasets["test"], device, args.window)
+        print(f"\nTEST (signer-independent, mẫu thật): top1 {test1:.3f} | top5 {test5:.3f}")
+        print(f"TEST NO_SIGN recall: {test_ns:.3f}")
+        print(f"TEST streaming (cửa sổ trượt {args.window}/{SERVE_STRIDE} + vote): {test_stream:.3f}")
+    else:
+        test1 = test5 = test_ns = test_stream = None
+        print("\n(Không có thư mục test — chế độ pretrain, bỏ qua đánh giá test)")
     if run:
         run.summary.update({"test_top1": test1, "test_top5": test5,
                             "test_no_sign_recall": test_ns, "test_streaming_top1": test_stream})
@@ -191,11 +209,12 @@ def main() -> None:
     # Export ONNX + labels.json cho apps/ml
     export_model = ExportWrapper(model).eval().cpu()
     dummy = torch.zeros(1, args.window, FRAME_DIMS)
+    # Không ghim opset: exporter dùng bản mới nhất nó hỗ trợ — serving chạy
+    # onnxruntime >= 1.28 nên tương thích; ghim 17 chỉ sinh cảnh báo fallback ồn ào.
     torch.onnx.export(
         export_model, (dummy,), str(args.out / "sign_model.onnx"),
         input_names=["frames"], output_names=["probs"],
         dynamic_axes={"frames": {0: "batch"}, "probs": {0: "batch"}},
-        opset_version=17,
     )
     (args.out / "labels.json").write_text(json.dumps({
         "labels": labels + ["NO_SIGN"], "window": args.window, "dims": FRAME_DIMS,
