@@ -106,9 +106,14 @@ export default function VideoTranslateTool() {
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [samples, setSamples] = useState<SampleClip[]>([]);
   const [loadingSampleId, setLoadingSampleId] = useState<number | null>(null);
+  /** Tỉ lệ khung hình dùng để giữ chỗ; 16:9 cho tới khi biết tỉ lệ thật của clip. */
+  const [videoRatio, setVideoRatio] = useState(16 / 9);
 
   /** Mốc thời gian đã xử lý — dùng để phát hiện tua LÙI trong onSeeked. */
   const lastTimeRef = useRef(0);
+  /** Hủy lượt tải clip mẫu đang dở khi bấm clip khác hoặc rời trang. */
+  const sampleAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => sampleAbortRef.current?.abort(), []);
 
   // Handler của socket gán một lần lúc kết nối; đọc state trong đó sẽ dính giá trị
   // cũ khi người dùng bật/tắt sau này, nên giữ trong ref để luôn đọc bản mới nhất.
@@ -247,23 +252,30 @@ export default function VideoTranslateTool() {
   }
 
   async function loadSample(clip: SampleClip) {
+    // Hủy lượt tải trước (bấm clip khác / rời trang giữa chừng): không hủy thì
+    // blob vẫn được tạo sau khi component đã gỡ và không ai thu hồi nữa.
+    sampleAbortRef.current?.abort();
+    const controller = new AbortController();
+    sampleAbortRef.current = controller;
     setLoadingSampleId(clip.id);
     try {
       // Bắt buộc đi qua fetch + blob: gán thẳng URL khác origin vào <video> sẽ
       // làm canvas bị "nhuộm bẩn" (taint) và MediaPipe không đọc được khung hình.
-      const res = await fetch(clip.url);
+      const res = await fetch(clip.url, { signal: controller.signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
+      if (controller.signal.aborted) return;
       applyVideoSource(URL.createObjectURL(blob), `Clip mẫu — ${clip.label}`);
       toast.success(`Đã nạp clip mẫu «${clip.label}»`, {
         description: "Bấm «Phát và dịch» để bắt đầu.",
       });
     } catch {
+      if (controller.signal.aborted) return; // người dùng tự hủy — không phải lỗi
       toast.error("Không tải được clip mẫu", {
         description: "Kiểm tra dịch vụ core đang chạy ở cổng 8080 rồi thử lại.",
       });
     } finally {
-      setLoadingSampleId(null);
+      if (sampleAbortRef.current === controller) setLoadingSampleId(null);
     }
   }
 
@@ -318,6 +330,10 @@ export default function VideoTranslateTool() {
   function handleLoadedMetadata() {
     const video = videoRef.current;
     setDuration(video && Number.isFinite(video.duration) ? video.duration : 0);
+    // Khớp khung chứa với tỉ lệ thật của clip — canvas phủ trùng khít video
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      setVideoRatio(video.videoWidth / video.videoHeight);
+    }
   }
 
   const isLive = connection === "connected" || connection === "connecting";
@@ -374,7 +390,18 @@ export default function VideoTranslateTool() {
           >
             {/* <video> và <canvas> LUÔN nằm trong DOM: hook MediaPipe bám ref ngay
                 lần render đầu, gỡ ra rồi gắn lại thì vòng lặp không khởi động nữa. */}
-            <div className={showVideo ? "relative mx-auto w-fit max-w-full" : "hidden"}>
+            {/* Khung giữ chỗ theo tỉ lệ: mặc định 16:9 trước khi biết clip, đổi
+                đúng tỉ lệ thật khi có metadata. Không có tỉ lệ cố định thì khung
+                cao 0px rồi bung ra lúc nạp xong — cả trang giật một nhịp (§3.3).
+                Tỉ lệ khung LUÔN bằng tỉ lệ video nên canvas phủ khít khung xương. */}
+            <div
+              style={{ aspectRatio: videoRatio }}
+              className={
+                showVideo
+                  ? "relative mx-auto w-full max-w-3xl overflow-hidden rounded-xl bg-black"
+                  : "hidden"
+              }
+            >
               <video
                 ref={videoRef}
                 src={fileUrl ?? undefined}
@@ -390,11 +417,12 @@ export default function VideoTranslateTool() {
                 }}
                 onSeeked={handleSeeked}
                 onTimeUpdate={handleTimeUpdate}
-                className="max-h-[55vh] w-full rounded-xl bg-black"
+                className="absolute inset-0 size-full"
               />
               {/* pointer-events-none để vẫn bấm được thanh điều khiển video bên dưới */}
               <canvas
                 ref={canvasRef}
+                aria-hidden
                 className="pointer-events-none absolute inset-0 size-full"
               />
             </div>

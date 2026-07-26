@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { API_BASE } from "@/lib/landmarks";
 import KpiCards from "./KpiCards";
 import ModelMetricsTable from "./ModelMetricsTable";
@@ -86,6 +86,8 @@ export default function StatsDashboard() {
 
   /** Hủy lượt tải đang dở khi đổi khoảng ngày / rời trang / bấm làm mới liên tục. */
   const abortRef = useRef<AbortController | null>(null);
+  /** Có lượt tải đang chạy không — vòng poll dựa vào đây để KHÔNG cắt ngang lượt cũ. */
+  const inFlightRef = useRef(false);
 
   // KHÔNG khai báo async: mọi setState phải nằm trong callback .then, không được
   // đứng trong thân hàm được effect gọi thẳng (react-hooks/set-state-in-effect).
@@ -93,6 +95,7 @@ export default function StatsDashboard() {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    inFlightRef.current = true;
     const { signal } = controller;
 
     // Hai lời gọi độc lập → chạy song song, và hỏng riêng từng cái
@@ -123,6 +126,10 @@ export default function StatsDashboard() {
       else if (!isAbort(metricsResult.reason)) {
         setMetricsError(describeError(metricsResult.reason));
       }
+    }).finally(() => {
+      // Chỉ hạ cờ nếu đây vẫn là lượt hiện tại: lượt mới hơn đã hủy lượt này thì
+      // nó mới là chủ của cờ.
+      if (abortRef.current === controller) inFlightRef.current = false;
     });
   }, []);
 
@@ -132,10 +139,14 @@ export default function StatsDashboard() {
     return () => abortRef.current?.abort();
   }, [loadAll, range]);
 
-  // Tự động làm mới — dọn hẹn giờ khi tắt công tắc, đổi khoảng, hoặc rời trang
+  // Tự động làm mới — dọn hẹn giờ khi tắt công tắc, đổi khoảng, hoặc rời trang.
+  // Backend chậm hơn một nhịp poll thì BỎ QUA nhịp đó thay vì hủy lượt đang chạy:
+  // hủy đều đặn mỗi 7 giây sẽ khiến số liệu không bao giờ về được.
   useEffect(() => {
     if (!autoRefresh) return;
-    const timer = setInterval(() => void loadAll(range), POLL_MS);
+    const timer = setInterval(() => {
+      if (!inFlightRef.current) void loadAll(range);
+    }, POLL_MS);
     return () => clearInterval(timer);
   }, [autoRefresh, loadAll, range]);
 
@@ -148,6 +159,61 @@ export default function StatsDashboard() {
   const days = summary ? buildDaySeries(summary.byDay, range) : [];
   const glosses = summary ? topGlosses(summary.byGloss, TOP_GLOSS_LIMIT) : [];
   const noData = summary !== null && summary.totalGlosses === 0;
+
+  /**
+   * Nội dung của khoảng ngày đang chọn. Lỗi khi ĐÃ có số liệu chỉ hiện thành dải
+   * cảnh báo phía trên chứ không thay thế dashboard: một nhịp tự động làm mới hụt
+   * mà xóa sạch màn hình đang chiếu là mất mặt ngay giữa buổi bảo vệ.
+   */
+  const rangeBody = (
+    <>
+      {summaryError !== null ? (
+        <ErrorState
+          title={summary === null ? "Không tải được số liệu sử dụng" : "Không làm mới được số liệu"}
+          message={
+            summary === null
+              ? summaryError
+              : `${summaryError} Số liệu bên dưới là lần tải gần nhất còn dùng được.`
+          }
+          onRetry={handleManualRefresh}
+        />
+      ) : null}
+
+      {firstLoad ? <DashboardSkeleton /> : null}
+
+      {summary !== null ? (
+        <>
+          <KpiCards
+            totalGlosses={summary.totalGlosses}
+            distinctGlosses={summary.byGloss.length}
+            latency={summary.latency}
+            days={range}
+          />
+          {noData ? (
+            <Card>
+              <CardContent>
+                <EmptyState
+                  icon={Hand}
+                  title="Chưa có lượt nhận diện nào"
+                  hint={`Trong ${range} ngày gần nhất chưa có ký hiệu nào được nhận diện. Chạy một phiên dịch rồi quay lại đây — số liệu hiện ngay.`}
+                  action={
+                    <Button asChild>
+                      <Link href="/translate">
+                        <Hand aria-hidden />
+                        Mở trang Phiên dịch
+                      </Link>
+                    </Button>
+                  }
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <StatsCharts days={days} glosses={glosses} rangeDays={range} />
+          )}
+        </>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
@@ -178,11 +244,10 @@ export default function StatsDashboard() {
         </div>
       </header>
 
-      <Tabs
-        value={String(range)}
-        onValueChange={(value) => setRange(Number(value) as RangeDays)}
-        className="mb-6"
-      >
+      {/* Mỗi tab PHẢI có TabsContent tương ứng: Radix gắn aria-controls từ trigger
+          sang panel, thiếu panel là trỏ vào id không tồn tại — trình đọc màn hình
+          báo lỗi cấu trúc. Radix chỉ gắn panel đang chọn nên không render thừa. */}
+      <Tabs value={String(range)} onValueChange={(value) => setRange(Number(value) as RangeDays)}>
         <TabsList aria-label="Chọn khoảng thời gian">
           {RANGE_OPTIONS.map((option) => (
             <TabsTrigger key={option} value={String(option)}>
@@ -190,53 +255,20 @@ export default function StatsDashboard() {
             </TabsTrigger>
           ))}
         </TabsList>
+
+        <p aria-live="polite" className="sr-only">
+          {autoRefresh ? "Đang tự động làm mới số liệu mỗi 7 giây" : "Tự động làm mới đang tắt"}
+        </p>
+
+        {RANGE_OPTIONS.map((option) => (
+          <TabsContent key={option} value={String(option)} className="mt-6 space-y-4">
+            {rangeBody}
+          </TabsContent>
+        ))}
       </Tabs>
 
-      <p aria-live="polite" className="sr-only">
-        {autoRefresh ? "Đang tự động làm mới số liệu mỗi 7 giây" : "Tự động làm mới đang tắt"}
-      </p>
-
-      <div className="space-y-4">
-        {summaryError !== null ? (
-          <ErrorState
-            title="Không tải được số liệu sử dụng"
-            message={summaryError}
-            onRetry={handleManualRefresh}
-          />
-        ) : firstLoad ? (
-          <DashboardSkeleton />
-        ) : summary !== null ? (
-          <>
-            <KpiCards
-              totalGlosses={summary.totalGlosses}
-              distinctGlosses={summary.byGloss.length}
-              latency={summary.latency}
-              days={range}
-            />
-            {noData ? (
-              <Card>
-                <CardContent>
-                  <EmptyState
-                    icon={Hand}
-                    title="Chưa có lượt nhận diện nào"
-                    hint={`Trong ${range} ngày gần nhất chưa có ký hiệu nào được nhận diện. Chạy một phiên dịch rồi quay lại đây — số liệu hiện ngay.`}
-                    action={
-                      <Button asChild>
-                        <Link href="/translate">
-                          <Hand aria-hidden />
-                          Mở trang Phiên dịch
-                        </Link>
-                      </Button>
-                    }
-                  />
-                </CardContent>
-              </Card>
-            ) : (
-              <StatsCharts days={days} glosses={glosses} rangeDays={range} />
-            )}
-          </>
-        ) : null}
-
+      {/* Kết quả huấn luyện không phụ thuộc khoảng ngày → để ngoài tab */}
+      <div className="mt-4">
         <ModelMetricsTable metrics={metrics} error={metricsError} onRetry={handleManualRefresh} />
       </div>
     </div>

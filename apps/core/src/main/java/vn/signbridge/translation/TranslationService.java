@@ -53,6 +53,8 @@ class TranslationService {
 	private static final int MAX_PENDING_SENTENCES = 50;
 	/** Chờ tối đa ngần này giây cho câu đang ghép dở lúc phiên đóng rồi mới ghi DB. */
 	private static final long PERSIST_WAIT_SECONDS = 12;
+	/** Phải khớp `length` của cột text/glosses trong TranscriptRecord. */
+	private static final int MAX_TRANSCRIPT_LENGTH = 1000;
 
 	private final MlClient mlClient;
 	private final SentenceComposer sentenceComposer;
@@ -73,6 +75,14 @@ class TranslationService {
 		SessionState state = sessions.remove(sessionId);
 		if (state == null) {
 			return;
+		}
+		// Ghép nốt phần gloss còn trong đệm. Không làm bước này thì luồng demo
+		// thường gặp nhất — ra vài ký hiệu rồi bấm "Ngắt kết nối" / đóng tab mà
+		// chưa kịp nghỉ tay đủ 3 cửa sổ — chẳng để lại dòng transcript nào.
+		synchronized (state) {
+			if (!state.glosses.isEmpty()) {
+				compose(state);
+			}
 		}
 		persistWhenReady(sessionId, state.snapshot());
 	}
@@ -179,8 +189,8 @@ class TranslationService {
 						.build());
 				sentences.forEach(completed -> transcriptRepository.save(TranscriptRecord.builder()
 						.session(session)
-						.text(completed.sentence().text())
-						.glosses(String.join("/", completed.sentence().glosses()))
+						.text(clampToColumn(completed.sentence().text()))
+						.glosses(clampToColumn(String.join("/", completed.sentence().glosses())))
 						.source(completed.sentence().source())
 						.at(completed.at())
 						.build()));
@@ -190,6 +200,15 @@ class TranslationService {
 			// Mất lịch sử một phiên không được làm hỏng gì khác — chỉ ghi log
 			log.warn("Không lưu được lịch sử phiên {}: {}", sessionId, e.getMessage());
 		}
+	}
+
+	/**
+	 * Cắt cho vừa cột `transcripts.text`/`glosses` (length = 1000). LLM thỉnh thoảng
+	 * trả câu dài bất thường; để nguyên thì INSERT ném lỗi ràng buộc, giao dịch cuộn
+	 * lại và mất TOÀN BỘ lịch sử phiên chỉ vì một câu — cắt bớt vẫn giữ được phần còn lại.
+	 */
+	private static String clampToColumn(String value) {
+		return value.length() <= MAX_TRANSCRIPT_LENGTH ? value : value.substring(0, MAX_TRANSCRIPT_LENGTH);
 	}
 
 	@PreDestroy

@@ -76,7 +76,7 @@ export default function TranslateDemo() {
     latest,
     connect,
     disconnect,
-    clearResults,
+    reset,
     pushFrame,
     flush,
   } = useTranslationSocket({ onSentence: handleSentence });
@@ -119,8 +119,9 @@ export default function TranslateDemo() {
 
   function handleFlush() {
     flush();
+    // Không hứa chắc có câu: client không biết server còn gloss nào đang đệm không
     toast.info("Đã yêu cầu chốt câu", {
-      description: "Câu tiếng Việt sẽ hiện ngay khi LLM ghép xong.",
+      description: "Nếu đang có ký hiệu chờ ghép, câu tiếng Việt sẽ hiện ngay sau đó.",
     });
   }
 
@@ -161,7 +162,15 @@ export default function TranslateDemo() {
           <Scissors aria-hidden />
           Chốt câu ngay
         </Button>
-        <Button size="lg" variant="ghost" onClick={clearResults} disabled={!hasResults}>
+        {/* reset() chứ không phải chỉ xóa phía client: server vẫn giữ gloss đang
+            đệm, xóa suông thì ~2 giây sau câu cũ quay lại và còn bị đọc lên. */}
+        <Button
+          size="lg"
+          variant="ghost"
+          onClick={reset}
+          disabled={!hasResults}
+          title="Xóa kết quả trên màn hình và bắt đầu lại phiên dịch phía máy chủ"
+        >
           <Eraser aria-hidden />
           Xóa kết quả
         </Button>
@@ -178,8 +187,11 @@ export default function TranslateDemo() {
 
       {cameraFailed ? (
         <ErrorState
-          title="Không mở được camera"
-          message="Hãy cho phép trình duyệt dùng camera (biểu tượng ổ khóa trên thanh địa chỉ) và đóng ứng dụng khác đang chiếm webcam (Zoom, Meet, OBS), sau đó tải lại trang."
+          title="Không khởi tạo được camera hoặc model nhận diện"
+          // Kèm nguyên văn lỗi từ MediaPipe/getUserMedia: cùng một chỗ hỏng có thể
+          // là chưa cấp quyền, webcam bị app khác chiếm, hay thiếu file model —
+          // gán cứng một nguyên nhân sẽ dắt người dùng đi sai hướng.
+          message={`${status}. Hãy cho phép trình duyệt dùng camera (biểu tượng ổ khóa trên thanh địa chỉ), đóng ứng dụng đang chiếm webcam (Zoom, Meet, OBS), rồi tải lại trang.`}
           onRetry={() => window.location.reload()}
         />
       ) : (

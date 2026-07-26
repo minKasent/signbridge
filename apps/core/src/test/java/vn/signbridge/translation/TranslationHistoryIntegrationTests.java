@@ -29,7 +29,14 @@ import org.testcontainers.utility.DockerImageName;
  */
 // RANDOM_PORT chứ không phải MOCK: WebSocketConfig cần ServerContainer thật của
 // servlet container, môi trường mock không có và context sẽ không khởi tạo được.
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+//
+// api-key ÉP RỖNG tại đây, KHÔNG tin vào việc máy chạy test không có khóa:
+// application.yml nạp `../../.env` nên máy nào có GEMINI_API_KEY thì SentenceComposer
+// gọi mạng thật, source thành "llm" và assertion dưới vỡ — mà lại chỉ vỡ trên máy
+// có khóa (repo chính), nên cổng kiểm tra ở worktree vẫn xanh giả.
+@SpringBootTest(
+		webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+		properties = "signbridge.llm.api-key=")
 @Import(TranslationHistoryIntegrationTests.LocalTestcontainers.class)
 class TranslationHistoryIntegrationTests {
 
@@ -74,19 +81,7 @@ class TranslationHistoryIntegrationTests {
 
 		translationService.closeSession(sessionId);
 
-		// Ghi DB chạy bất đồng bộ sau khi câu ghép xong → chờ tối đa ~20 giây
-		TranslationSessionRecord saved = null;
-		long deadline = System.currentTimeMillis() + 20_000;
-		while (System.currentTimeMillis() < deadline) {
-			saved = sessions.findAll().stream()
-					.filter(s -> sessionId.equals(s.getWsSessionId()))
-					.findFirst().orElse(null);
-			if (saved != null) {
-				break;
-			}
-			Thread.sleep(200);
-		}
-
+		TranslationSessionRecord saved = awaitSession(sessionId);
 		assertThat(saved).as("phiên có ký hiệu phải được lưu trong 20s").isNotNull();
 		assertThat(saved.getGlossCount()).isEqualTo(2);
 		assertThat(saved.getSentenceCount()).isEqualTo(1);
@@ -99,8 +94,37 @@ class TranslationHistoryIntegrationTests {
 		assertThat(lines).hasSize(1);
 		assertThat(lines.get(0).getGlosses()).isEqualTo("XIN_CHAO/CAM_ON");
 		assertThat(lines.get(0).getText()).isNotBlank();
-		// Không có GEMINI_API_KEY trong test → phải rơi về cách ghép dự phòng
+		// api-key ép rỗng ở @SpringBootTest → luôn là cách ghép dự phòng, không gọi mạng
 		assertThat(lines.get(0).getSource()).isEqualTo("fallback");
+	}
+
+	/**
+	 * Luồng demo thường gặp nhất: ra vài ký hiệu rồi bấm "Ngắt kết nối" (hoặc đóng
+	 * tab) mà chưa kịp nghỉ tay đủ lâu để hệ thống tự chốt câu. Gloss còn trong đệm
+	 * phải được ghép nốt lúc đóng phiên, không thì bảng transcripts rỗng trơn.
+	 */
+	@Test
+	void dongPhienGiuaChungVanGhepNotCauCuoi() throws Exception {
+		String sessionId = "phien-dong-dot-ngot";
+		translationService.openSession(sessionId);
+
+		given(mlClient.infer(anyList())).willReturn(Optional.of(new MlClient.InferResponse("TOI", 0.90)));
+		translationService.processWindow(sessionId, WINDOW, System.nanoTime());
+
+		// KHÔNG gọi flush và KHÔNG chờ nghỉ tay — đóng thẳng như client ngắt kết nối
+		translationService.closeSession(sessionId);
+
+		TranslationSessionRecord saved = awaitSession(sessionId);
+		assertThat(saved).as("phiên đóng giữa chừng vẫn phải được lưu").isNotNull();
+		assertThat(saved.getGlossCount()).isEqualTo(1);
+		assertThat(saved.getSentenceCount()).isEqualTo(1);
+
+		Long savedId = saved.getId();
+		List<TranscriptRecord> lines = transcripts.findAll().stream()
+				.filter(t -> t.getSession().getId().equals(savedId))
+				.toList();
+		assertThat(lines).hasSize(1);
+		assertThat(lines.get(0).getGlosses()).isEqualTo("TOI");
 	}
 
 	@Test
@@ -116,5 +140,20 @@ class TranslationHistoryIntegrationTests {
 
 		Thread.sleep(1_000); // đủ để tác vụ ghi (nếu có) kịp chạy
 		assertThat(sessions.count()).isEqualTo(before);
+	}
+
+	/** Ghi DB chạy bất đồng bộ sau khi câu ghép xong → chờ tối đa ~20 giây. */
+	private TranslationSessionRecord awaitSession(String sessionId) throws InterruptedException {
+		long deadline = System.currentTimeMillis() + 20_000;
+		while (System.currentTimeMillis() < deadline) {
+			TranslationSessionRecord found = sessions.findAll().stream()
+					.filter(s -> sessionId.equals(s.getWsSessionId()))
+					.findFirst().orElse(null);
+			if (found != null) {
+				return found;
+			}
+			Thread.sleep(200);
+		}
+		return null;
 	}
 }
