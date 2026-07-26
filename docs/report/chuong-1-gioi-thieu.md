@@ -28,18 +28,18 @@ phải ba hay bốn ký hiệu ghép lại (mục `TEN_LA_GI` → nhãn "tên l�
 — `training/preprocess/import_signconnect.py`, dòng 49). Tương tự, "đau bụng" là một ký
 hiệu nguyên khối chứ không phải "đau" cộng "bụng". Chính vì vậy thuật toán dịch chiều
 ngược của hệ thống phải khớp cụm dài nhất trước (`dictionary/SignComposer.java`, dòng
-14-21) thay vì tách từng từ.
+17-21) thay vì tách từng từ.
 
 **Thứ ba, có những khái niệm VSL diễn đạt bằng cơ chế phi từ vựng.** Ngôi thứ nhất "tôi"
 trong VSL được thể hiện bằng động tác **chỉ vào chính mình**, nên từ điển ký hiệu quốc gia
 không có mục từ vựng riêng cho nó. Đây không phải thiếu sót của kho dữ liệu mà là một đặc
 điểm ngôn ngữ học, phát hiện khi đối chiếu câu mẫu trình diễn với kho ký hiệu thật
 (`docs/merge-notes/branch-c-sprint2.md`, dòng 33-35; `apps/web/src/app/speak/SpeakTool.tsx`,
-dòng 57-61).
+dòng 59-61).
 
-Ba tình huống trên cho thấy bài toán không thể quy về "nhận dạng cử chỉ rồi tra bảng". Mọi
-khâu — từ định nghĩa nhãn, cách thu dữ liệu, đến cách ghép câu — đều phải tôn trọng việc
-VSL là một ngôn ngữ riêng.
+Ba tình huống trên cho thấy bài toán không thể quy về "nhận dạng cử chỉ rồi tra bảng": mọi
+khâu, từ định nghĩa nhãn đến cách ghép câu, đều phải tôn trọng việc VSL là một ngôn ngữ
+riêng.
 
 ## 1.2. Phát biểu bài toán
 
@@ -70,32 +70,32 @@ dùng và máy trích đặc trưng lúc huấn luyện phải cho ra cùng mộ
 mô hình rớt độ chính xác âm thầm, không có thông báo lỗi nào. Đồ án ràng buộc điều này
 bằng một vector đặc trưng 144 chiều định nghĩa thống nhất ở cả bốn tầng
 (`apps/web/src/lib/landmarks.ts` dòng 15, `training/model/dataset.py`, `apps/ml/app/main.py`
-dòng 21, `LandmarkWebSocketHandler.java` dòng 42) và một nhịp trích đặc trưng ghim cứng ở
-25 khung hình/giây (`apps/web/src/lib/useVisionPipeline.ts`, dòng 23-24).
+dòng 21, `LandmarkWebSocketHandler.java` dòng 42) và nhịp trích đặc trưng ghim cứng ở 25
+khung hình/giây (`apps/web/src/lib/useVisionPipeline.ts`, dòng 23-24).
 
 ## 1.3. Mục tiêu và phạm vi
 
 **Hệ thống CÓ làm:**
 
-- Nhận diện ký hiệu rời (isolated sign) theo thời gian thực từ webcam, với bộ từ vựng quy
-  mô đồ án (mục tiêu 100-200 gloss, ưu tiên chủ đề y tế).
-- Ghép chuỗi gloss thành một câu tiếng Việt tự nhiên khi người ký ngắt nhịp, rồi hiển thị
-  văn bản và đọc thành tiếng.
+- Nhận diện ký hiệu rời (isolated sign) thời gian thực từ webcam, bộ từ vựng quy mô đồ án
+  (mục tiêu 100-200 gloss, ưu tiên chủ đề y tế).
+- Ghép chuỗi gloss thành một câu tiếng Việt tự nhiên khi người ký ngắt nhịp, hiển thị văn
+  bản và đọc thành tiếng.
 - Chiều ngược lại: người nghe gõ hoặc nói tiếng Việt, hệ thống khớp từ điển và phát lần
   lượt clip ký hiệu quay sẵn; từ không có trong từ điển thì đánh vần bằng bảng chữ cái
   ngón tay và báo trung thực từ nào không dịch được.
-- Công cụ quản trị từ điển, thu mẫu dữ liệu, và thống kê sử dụng.
+- Công cụ quản trị từ điển, thu mẫu dữ liệu và thống kê sử dụng.
 
 **Hệ thống KHÔNG làm (ghi rõ để giới hạn kỳ vọng khi bảo vệ):**
 
 - Không sinh chuyển động **avatar 3D** bằng AI — chiều ngược chỉ phát lại clip có sẵn.
 - Không nhận diện **biểu cảm khuôn mặt** và các thành tố phi thủ công khác (hướng nhìn,
-  chuyển động thân), dù đây là thành phần ngữ pháp thật sự của VSL. Vector đặc trưng chỉ
+  chuyển động thân), dù đây là thành phần ngữ pháp thật sự của VSL: vector đặc trưng chỉ
   gồm hai bàn tay và sáu điểm thân trên (vai, khuỷu, cổ tay).
-- Không phủ **toàn bộ từ vựng VSL**. Từ điển tra cứu và chiều ngược dùng được kho lớn,
+- Không phủ **toàn bộ từ vựng VSL** — từ điển tra cứu và chiều ngược dùng được kho lớn,
   nhưng mô hình nhận diện chỉ học một tập con.
-- Không nhận diện **câu ký hiệu liên tục không ngắt nhịp** (continuous signing) — đây là
-  bài toán nghiên cứu mở, được nêu ở phần hạn chế.
+- Không nhận diện **câu ký hiệu liên tục không ngắt nhịp** (continuous signing) — bài toán
+  nghiên cứu mở, nêu ở phần hạn chế.
 
 ## 1.4. Đóng góp của đồ án
 
@@ -130,21 +130,21 @@ dòng 21, `LandmarkWebSocketHandler.java` dòng 42) và một nhịp trích đ�
    tập huấn luyện**, không trộn vào tập kiểm tra.
 
 6. **Hồ sơ lỗi và quy trình review đối kháng.** Lỗi bắt được cùng nguyên nhân gốc và bản vá
-   tương ứng được ghi lại ở Phụ lục A, kèm bộ kiểm thử hồi quy: 9 tệp kiểm thử Java chứa 17
-   phương thức `@Test`, và 27 khẳng định kiểm thử đầu-cuối (21 ở
-   `tests/e2e/infrastructure.test.js`, 6 ở `tests/e2e/sentence.test.js`).
+   được ghi ở Phụ lục A, kèm bộ kiểm thử hồi quy: 9 tệp kiểm thử Java chứa 17 phương thức
+   `@Test`, và 27 khẳng định kiểm thử đầu-cuối (21 ở `tests/e2e/infrastructure.test.js`,
+   6 ở `tests/e2e/sentence.test.js`).
 
-**Những gì chưa đo được, khai báo trung thực:** tại thời điểm viết chương này, kho mã
-**chưa có mô hình ONNX đã huấn luyện** (thư mục `apps/ml/model/` không tồn tại, không có
-tệp `labels.json` nào trong repo), nên dịch vụ suy luận đang chạy ở chế độ giả lập. Do đó
-độ chính xác nhận diện top-1/top-5, ma trận nhầm lẫn, độ trễ đầu-cuối p50/p95 và điểm khảo
-sát khả dụng SUS đều là [CẦN SỐ LIỆU], sẽ bổ sung ở Chương 4 sau khi có quyền truy cập dữ
-liệu. Bộ dữ liệu VSL400 hiện mới có phần siêu dữ liệu công khai:
-`training/vsl400/label_map.json` chứa đúng 400 gloss (id 0-399) và ba tệp CSV chứa
-17.104 / 2.885 / 4.764 bản ghi (tổng 24.753). Có một mâu thuẫn phải làm rõ trước khi trích
-dẫn: bài báo mô tả bộ dữ liệu ghi **28 người ký**, trong khi đếm trực tiếp trên ba tệp CSV
-chỉ thấy **26 mã người ký phân biệt**, và cả 26 mã đều xuất hiện ở cả ba tập — nghĩa là
-bản chia sẵn **không** độc lập theo người ký, phải tự chia lại trước khi báo cáo kết quả.
+**Những gì chưa đo được, khai báo trung thực:** tại thời điểm viết chương này kho mã **chưa
+có mô hình ONNX đã huấn luyện** (thư mục `apps/ml/model/` không tồn tại, không có tệp
+`labels.json` nào trong repo), nên dịch vụ suy luận đang chạy ở chế độ giả lập. Do đó độ
+chính xác top-1/top-5, ma trận nhầm lẫn, độ trễ đầu-cuối p50/p95 và điểm khảo sát khả dụng
+SUS đều là [CẦN SỐ LIỆU], sẽ bổ sung ở Chương 4 sau khi có quyền truy cập dữ liệu. Bộ dữ
+liệu VSL400 hiện mới có siêu dữ liệu công khai: `training/vsl400/label_map.json` chứa đúng
+400 gloss (id 0-399) và ba tệp CSV chứa 17.104 / 2.885 / 4.764 bản ghi (tổng 24.753). Có
+một mâu thuẫn phải làm rõ trước khi trích dẫn: bài báo mô tả bộ dữ liệu ghi **28 người
+ký**, trong khi đếm trực tiếp trên ba tệp CSV chỉ thấy **26 mã người ký phân biệt**, và cả
+26 mã đều xuất hiện ở cả ba tập — nghĩa là bản chia sẵn **không** độc lập theo người ký,
+phải tự chia lại trước khi báo cáo kết quả.
 
 ## 1.5. Bố cục báo cáo
 
