@@ -81,6 +81,17 @@ Tạo tự động lúc khởi động từ `application.yml` (prod: đặt bi�
 API đăng ký công khai (`POST /api/auth/register`) **luôn chỉ cấp quyền USER** —
 quyền ADMIN chỉ đến từ tài khoản bootstrap này.
 
+## Kiểm thử
+
+```powershell
+cd apps/core; ./mvnw test          # 9 test: Modulith verify + Testcontainers + unit ghép câu
+cd apps/web;  npm run build        # type-check + lint + build
+node tests/e2e/infrastructure.test.js   # 17 kiểm tra E2E (cần stack đang chạy)
+node tests/e2e/sentence.test.js         # 6 kiểm tra luồng ghép câu
+```
+
+Chi tiết: [tests/e2e/README.md](tests/e2e/README.md).
+
 ## Kiểm tra kiến trúc module
 
 ```powershell
