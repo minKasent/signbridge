@@ -41,6 +41,8 @@ const ACCEPTED_TYPES = ["video/mp4", "video/webm"];
 const ACCEPTED_EXT = /\.(mp4|webm)$/i;
 /** Số clip mẫu hiện trên trang: đủ để bấm nhanh khi trình chiếu, không rối. */
 const SAMPLE_COUNT = 3;
+/** Chủ đề của bộ từ demo (SignSeeder) — kho QIPEDC nhập vào dùng chủ đề "TUDIEN". */
+const SAMPLE_CATEGORIES = ["GREETING", "MEDICAL", "DAILY"];
 
 type SampleClip = { id: number; label: string; url: string };
 type SignRow = { id: number; meaningVi: string; clipUrl: string | null };
@@ -156,19 +158,29 @@ export default function VideoTranslateTool() {
   // được file trong máy — không để một API lỗi làm vỡ cả trang demo.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${API_BASE}/api/signs`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then((rows: SignRow[]) => {
-        const list = Array.isArray(rows) ? rows : [];
+    const fetchSigns = (query: string): Promise<SignRow[]> =>
+      fetch(`${API_BASE}/api/signs${query}`, { signal: controller.signal })
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+        .then((rows: SignRow[]) => (Array.isArray(rows) ? rows : []));
+
+    // Hỏi theo CHỦ ĐỀ demo trước: ~3.300 từ nhập từ kho QIPEDC nằm ở chủ đề
+    // "TUDIEN", nên ba chủ đề này chỉ vài bản ghi. Vừa khỏi kéo cả kho từ điển
+    // về chỉ để lấy 3 clip, vừa ra clip CÓ NGHĨA khi trình chiếu ("xin chào",
+    // "bác sĩ") thay vì ba từ đầu bảng ngẫu nhiên.
+    Promise.all(SAMPLE_CATEGORIES.map((category) => fetchSigns(`?category=${category}`)))
+      .then((lists) => {
+        const curated = lists.flat().filter((row) => Boolean(row.clipUrl));
+        if (curated.length > 0) return curated;
+        // Chủ đề demo chưa có clip nào → mới chịu tải danh sách đầy đủ
+        return fetchSigns("").then((rows) => rows.filter((row) => Boolean(row.clipUrl)));
+      })
+      .then((rows) => {
         setSamples(
-          list
-            .filter((row) => Boolean(row.clipUrl))
-            .slice(0, SAMPLE_COUNT)
-            .map((row) => ({
-              id: row.id,
-              label: row.meaningVi,
-              url: `${API_BASE}${row.clipUrl}`,
-            }))
+          rows.slice(0, SAMPLE_COUNT).map((row) => ({
+            id: row.id,
+            label: row.meaningVi,
+            url: `${API_BASE}${row.clipUrl}`,
+          }))
         );
       })
       .catch(() => {

@@ -59,7 +59,7 @@ export function GlossChips({
             )}
           >
             {showTime && item.videoTime !== undefined ? (
-              <span className="font-mono text-xs text-muted-foreground">
+              <span className="font-mono text-sm text-muted-foreground">
                 {formatVideoTime(item.videoTime)}
               </span>
             ) : null}
