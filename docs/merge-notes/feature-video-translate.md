@@ -73,7 +73,18 @@ viết bản thứ hai.
 4. **Lưu lịch sử phiên**: ghi khi phiên WebSocket đóng, trên virtual thread riêng, có chờ
    tối đa 12 giây cho câu đang ghép dở — **không nằm trên hot path** của phiên dịch.
 
-### B.4 Cảnh báo đã trả giá để biết
+### B.4 Hai thứ AGENT C TUYỆT ĐỐI không được gỡ
+
+1. **`@SpringBootTest(properties = "signbridge.llm.api-key=")` trong
+   `TranslationHistoryIntegrationTests`.** `application.yml` nạp `../../.env`, mà repo
+   chính `d:/Khoa/DATN` CÓ `.env` với `GEMINI_API_KEY` thật — bỏ dòng ép rỗng này thì test
+   gọi mạng thật, `source` thành `"llm"` và assertion `"fallback"` vỡ **chỉ trên máy có
+   khóa**, tức cổng §8 ở worktree vẫn xanh giả rồi đỏ đúng lúc merge. (Review đối kháng
+   tái hiện được nguyên văn: `expected: "fallback" but was: "llm"`.)
+2. **`TransactionTemplate` REPEATABLE READ trong `AnalyticsController`** — bản vá lỗi số
+   liệu vênh của sprint 1, gỡ là lỗi quay lại (plan §6.B4 cũng ghi rõ).
+
+### B.5 Cảnh báo đã trả giá để biết
 
 - **`globals.css` từng bị hoàn nguyên giữa chừng** làm mất `@keyframes shine`. Hậu quả:
   `shine-border` build được nhưng **animation im lặng không chạy** — đúng loại bẫy mà plan
@@ -83,7 +94,21 @@ viết bản thứ hai.
   đã xóa nguyên phần nền UI. Đã cứu bằng branch `backup/agent-b-ui-foundation`
   (giữ lại tới khi merge xong cho chắc).
 
-### B.5 Còn nợ / gợi ý cho sprint sau
+### B.6 Đổi hành vi đáng chú ý (từ review đối kháng)
+
+- **Đóng phiên giữa chừng nay vẫn ghép nốt câu cuối.** Trước đó `closeSession()` chỉ ghi
+  những câu ĐÃ ghép; luồng demo phổ biến nhất (ra vài ký hiệu → bấm "Ngắt kết nối" mà chưa
+  nghỉ tay đủ 3 cửa sổ) để lại bảng `transcripts` trống trơn. Có test hồi quy
+  `dongPhienGiuaChungVanGhepNotCauCuoi`.
+- **Câu/chuỗi gloss dài bị cắt còn 1000 ký tự trước khi ghi** — trước đó một câu LLM dài
+  bất thường làm vỡ ràng buộc cột và cuộn lại giao dịch, mất TOÀN BỘ lịch sử phiên.
+- **`/translate` nút "Xóa kết quả" nay gọi `reset()`** (đóng/mở lại socket) thay vì chỉ xóa
+  phía client — xóa suông thì câu cũ quay lại sau ~2 giây và còn bị đọc lên.
+- **`/stats` lỗi một nhịp làm mới KHÔNG xóa dashboard đang hiển thị**, chỉ hiện dải cảnh
+  báo phía trên; vòng poll bỏ qua nhịp nếu lượt trước chưa xong (backend chậm hơn 7 giây
+  thì số liệu không bao giờ về được).
+
+### B.7 Còn nợ / gợi ý cho sprint sau
 
 - `/api/signs` chưa có tham số `limit`/`hasClip`. Trang `/video` lách bằng cách hỏi theo
   chủ đề demo (`GREETING`, `MEDICAL`, `DAILY` — kho QIPEDC nhập vào nằm ở chủ đề `TUDIEN`)
