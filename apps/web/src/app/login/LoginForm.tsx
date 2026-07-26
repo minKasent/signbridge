@@ -19,10 +19,21 @@ import { Label } from "@/components/ui/label";
  * KHÔNG in tài khoản dev lên trang (lỗi bảo mật đã sửa ở sprint 1).
  */
 
-/** Chỉ nhận đường dẫn nội bộ — `?next=https://…` là lỗ chuyển hướng mở. */
+/**
+ * Chỉ nhận đường dẫn nội bộ — `?next=https://…` là lỗ chuyển hướng mở.
+ * Chặn cả `/\evil.com`: chuẩn WHATWG coi dấu gạch chéo ngược trong URL http(s)
+ * ngang với gạch chéo thường, nên `/\evil.com` bị hiểu là `//evil.com` (tương
+ * đối theo giao thức) và điều hướng ra ngoài miền.
+ */
 function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/admin";
+  if (!raw || !raw.startsWith("/")) return "/admin";
+  if (/^\/[\\/]/.test(raw)) return "/admin";
   return raw;
+}
+
+/** `login()` đã trả thông điệp tiếng Việt cho 401; các mã khác thì nói chung chung. */
+function describeLoginError(error: unknown): string {
+  return error instanceof Error && error.message !== "" ? error.message : "Sai email hoặc mật khẩu";
 }
 
 function LoginFormInner() {
@@ -32,12 +43,16 @@ function LoginFormInner() {
 
   const emailId = useId();
   const passwordId = useId();
+  const errorId = useId();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+  // Phân biệt hai loại lỗi: sai thông tin đăng nhập (ô nhập sai → aria-invalid)
+  // và đăng nhập được nhưng thiếu quyền (ô nhập KHÔNG sai, đừng đánh dấu sai).
+  const [error, setError] = useState<{ kind: "credentials" | "role"; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const invalidCredentials = error?.kind === "credentials";
 
   // Đã có phiên ADMIN mà vào /login → đi tiếp luôn, không bắt đăng nhập lại
   useEffect(() => {
@@ -47,17 +62,20 @@ function LoginFormInner() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
-    setError("");
+    setError(null);
     setSubmitting(true);
     try {
       const user = await login(email.trim(), password);
       if (user.role !== "ADMIN") {
-        setError("Tài khoản này không có quyền quản trị.");
+        setError({ kind: "role", message: "Tài khoản này không có quyền quản trị." });
       } else {
         router.replace(next);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Sai email hoặc mật khẩu");
+      setError({
+        kind: "credentials",
+        message: e instanceof TypeError ? "Không kết nối được máy chủ (cổng 8080)." : describeLoginError(e),
+      });
     }
     setSubmitting(false);
   }
@@ -99,7 +117,8 @@ function LoginFormInner() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                aria-invalid={error !== "" ? true : undefined}
+                aria-invalid={invalidCredentials ? true : undefined}
+                aria-describedby={error ? errorId : undefined}
               />
             </div>
 
@@ -113,15 +132,18 @@ function LoginFormInner() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  aria-invalid={error !== "" ? true : undefined}
+                  aria-invalid={invalidCredentials ? true : undefined}
+                  aria-describedby={error ? errorId : undefined}
                   className="pr-10"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
+                  // Nhãn đổi theo trạng thái nên KHÔNG dùng aria-pressed: hai thứ
+                  // cùng lúc làm trình đọc màn hình đọc ra nghĩa ngược ("Hiện mật
+                  // khẩu, đã bật" trong khi mật khẩu đang bị ẩn).
                   aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                  aria-pressed={showPassword}
                   className="absolute right-1 top-1/2 -translate-y-1/2"
                   onClick={() => setShowPassword((v) => !v)}
                 >
@@ -130,9 +152,9 @@ function LoginFormInner() {
               </div>
             </div>
 
-            {error !== "" ? (
-              <p role="alert" aria-live="assertive" className="text-sm text-destructive">
-                {error}
+            {error ? (
+              <p id={errorId} role="alert" aria-live="assertive" className="text-sm text-destructive">
+                {error.message}
               </p>
             ) : null}
 

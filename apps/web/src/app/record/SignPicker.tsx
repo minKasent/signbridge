@@ -146,15 +146,15 @@ export function SignPicker({
               id={`${listId}-${sign.id}`}
               role="option"
               aria-selected={selected}
-              onMouseDown={(e) => {
-                // mousedown thay vì click: click xảy ra sau blur, lúc đó ô tìm đã mất focus
-                e.preventDefault();
-                choose(sign);
-              }}
+              // onClick (không phải onMouseDown): điều khiển bằng giọng nói và
+              // trình đọc màn hình phát sinh sự kiện click, không phát sinh mousedown.
+              // Danh sách luôn hiển thị nên không sợ blur làm mất mục trước khi click.
+              onClick={() => choose(sign)}
               onMouseEnter={() => moveCursor(i)}
               className={cn(
                 "flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm",
-                i === activeIndex && "bg-muted",
+                // Con trỏ bàn phím cần thấy được: chỉ đổi nền là ~1.7:1, thêm viền
+                i === activeIndex && "bg-muted ring-2 ring-ring/60",
                 selected && "bg-primary/15 text-foreground"
               )}
             >

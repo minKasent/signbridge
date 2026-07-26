@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CircleDot, RotateCcw, Save, Video, VideoOff } from "lucide-react";
+import { CircleDot, RefreshCw, RotateCcw, Save, Video, VideoOff } from "lucide-react";
 import { API_BASE } from "@/lib/landmarks";
 import { authHeader } from "@/lib/auth";
-import type { Sign } from "@/app/dictionary/sign";
+import { describeError, type Sign } from "@/app/dictionary/sign";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -62,6 +62,9 @@ export function ClipRecorder({
   const [countdown, setCountdown] = useState(0);
   const [hasClip, setHasClip] = useState(false);
   const [error, setError] = useState("");
+  // Tăng lên để xin lại quyền camera — trạng thái lỗi phải có đường thoát (nút
+  // "Thử lại"), không thì người dùng bị kẹt phải tải lại cả trang.
+  const [attempt, setAttempt] = useState(0);
 
   // Báo bước hiện tại ra ngoài (stepper của /record). Cha nên truyền hàm ổn định
   // bằng useCallback; nếu không thì cùng lắm gọi lại với giá trị cũ, React bỏ qua.
@@ -91,10 +94,15 @@ export function ClipRecorder({
         setPhase("idle");
       } catch (e) {
         if (!disposed) {
+          const name = e instanceof Error ? e.name : "";
           setError(
-            e instanceof Error && e.name === "NotAllowedError"
-              ? "Bạn đã từ chối quyền camera. Cho phép camera trong thanh địa chỉ rồi tải lại trang."
-              : `Không mở được camera: ${e instanceof Error ? e.message : e}`
+            name === "NotAllowedError"
+              ? "Bạn đã từ chối quyền camera. Cho phép camera cho trang này rồi bấm Thử lại."
+              : name === "NotFoundError"
+                ? "Không tìm thấy webcam nào trên máy. Cắm webcam rồi bấm Thử lại."
+                : name === "NotReadableError"
+                  ? "Webcam đang bị ứng dụng khác dùng (Zoom, Teams…). Đóng ứng dụng đó rồi bấm Thử lại."
+                  : `Không mở được camera: ${describeError(e)}`
           );
         }
       }
@@ -109,6 +117,23 @@ export function ClipRecorder({
         previewUrlRef.current = null;
       }
     };
+  }, [attempt]);
+
+  /**
+   * Dừng và tháo khung xem lại: thẻ video bị ẩn bằng class vẫn tiếp tục giải mã
+   * và phát vòng lặp ngầm, còn blob URL thì không ai thu hồi cho tới khi unmount.
+   */
+  const releasePreview = useCallback(() => {
+    const preview = previewRef.current;
+    if (preview) {
+      preview.pause();
+      preview.removeAttribute("src");
+      preview.load();
+    }
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
   }, []);
 
   const record = useCallback(async () => {
@@ -175,18 +200,22 @@ export function ClipRecorder({
         onAuthError();
         return;
       }
-      if (!res.ok) throw new Error(`Máy chủ trả lỗi ${res.status}`);
+      if (!res.ok) throw new Error(`máy chủ trả lỗi ${res.status}`);
       const updated: Sign = await res.json();
-      if (disposedRef.current) return;
-      // Về lại trạng thái sẵn sàng: /record giữ component này sống để quay liên
-      // tiếp nhiều từ, kẹt mãi ở "Đang lưu…" là hỏng luồng.
-      clipRef.current = null;
-      setHasClip(false);
-      setPhase("idle");
+      if (!disposedRef.current) {
+        // Về lại trạng thái sẵn sàng: /record giữ component này sống để quay liên
+        // tiếp nhiều từ, kẹt mãi ở "Đang lưu…" là hỏng luồng.
+        clipRef.current = null;
+        setHasClip(false);
+        releasePreview();
+        setPhase("idle");
+      }
+      // Báo cha DÙ ĐÃ unmount: clip đã nằm trên máy chủ rồi, im lặng ở đây thì
+      // bảng vẫn hiện "Chưa có clip" cho một ký hiệu thực tế đã có clip.
       onUploaded(updated);
     } catch (e) {
       if (disposedRef.current) return;
-      setError(`Không lưu được clip: ${e instanceof Error ? e.message : e}`);
+      setError(`Không lưu được clip: ${describeError(e)}`);
       setPhase("preview");
     }
   }
@@ -227,10 +256,26 @@ export function ClipRecorder({
         ) : null}
 
         {error !== "" && phase === "starting" ? (
-          <div className="absolute inset-0 grid place-items-center bg-card/90 p-6 text-center">
-            <div className="space-y-2">
+          // role="alert": node này được chèn vào DOM sau khi component đã mount nên
+          // trình đọc màn hình đọc ngay. Không có nó thì lỗi camera — nhánh lỗi hay
+          // gặp nhất của tính năng này — hoàn toàn im lặng với người dùng khiếm thị.
+          <div
+            role="alert"
+            className="absolute inset-0 grid place-items-center bg-card/95 p-6 text-center"
+          >
+            <div className="space-y-3">
               <VideoOff className="mx-auto size-8 text-destructive" aria-hidden />
               <p className="text-sm text-foreground">{error}</p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setError("");
+                  setAttempt((n) => n + 1);
+                }}
+              >
+                <RefreshCw aria-hidden />
+                Thử lại
+              </Button>
             </div>
           </div>
         ) : null}
@@ -252,9 +297,11 @@ export function ClipRecorder({
       {/* Quay clip là luồng hoàn toàn bằng hình ảnh — không đọc trạng thái thì người
           dùng trình đọc màn hình không biết mình đang ở bước nào */}
       <p aria-live="polite" className="sr-only">
-        {phase === "starting"
-          ? "Đang chuẩn bị camera"
-          : phase === "countdown"
+        {error !== "" && phase === "starting"
+          ? "" /* overlay lỗi đã có role=alert — để trống ở đây kẻo đọc lặp hai lần */
+          : phase === "starting"
+            ? "Đang chuẩn bị camera"
+            : phase === "countdown"
             ? `Bắt đầu quay sau ${countdown}`
             : phase === "recording"
               ? "Đang quay, ba giây"
@@ -284,6 +331,7 @@ export function ClipRecorder({
               onClick={() => {
                 setHasClip(false);
                 clipRef.current = null;
+                releasePreview();
                 setPhase("idle");
               }}
               disabled={phase === "uploading"}

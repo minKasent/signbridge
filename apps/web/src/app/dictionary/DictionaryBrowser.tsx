@@ -176,11 +176,16 @@ export default function DictionaryBrowser() {
             <SearchX className="size-8 text-muted-foreground" aria-hidden />
             <div>
               <p className="font-medium">
-                {query !== "" ? `Không tìm thấy “${query}”` : "Không có ký hiệu nào khớp bộ lọc"}
+                {signs !== null && signs.length === 0
+                  ? "Từ điển chưa có ký hiệu nào"
+                  : query !== ""
+                    ? `Không tìm thấy “${query}”`
+                    : "Không có ký hiệu nào khớp bộ lọc"}
               </p>
               <p className="text-sm text-muted-foreground">
-                Tìm kiếm đã bỏ qua dấu (gõ “cam on” vẫn ra “cảm ơn”) — thử từ khác, hoặc bỏ bộ lọc
-                chủ đề / clip.
+                {signs !== null && signs.length === 0
+                  ? "Máy chủ trả về danh sách rỗng — kho QIPEDC có thể chưa được nhập. Người quản trị thêm ký hiệu ở trang Quản trị từ điển."
+                  : "Tìm kiếm đã bỏ qua dấu (gõ “cam on” vẫn ra “cảm ơn”) — thử từ khác, hoặc bỏ bộ lọc chủ đề / clip."}
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-2">

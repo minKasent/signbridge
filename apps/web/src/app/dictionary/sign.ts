@@ -64,6 +64,18 @@ export function clipSrc(sign: Sign, version = 0): string | null {
   return version > 0 ? `${API_BASE}${sign.clipUrl}?v=${version}` : `${API_BASE}${sign.clipUrl}`;
 }
 
+/**
+ * Diễn giải lỗi ra tiếng Việt. `fetch` thất bại vì mất mạng/backend chết ném
+ * TypeError với thông điệp tiếng Anh ("Failed to fetch") — bê nguyên lên giao
+ * diện là vi phạm quy ước tiếng Việt 100% và người dùng cũng không hiểu.
+ */
+export function describeError(error: unknown): string {
+  if (error instanceof TypeError) return "Không kết nối được máy chủ (cổng 8080).";
+  if (error instanceof DOMException && error.name === "AbortError") return "Yêu cầu bị hủy.";
+  if (error instanceof Error && error.message !== "") return error.message;
+  return "Lỗi không xác định.";
+}
+
 export type SearchEntry = { sign: Sign; haystack: string };
 
 /**

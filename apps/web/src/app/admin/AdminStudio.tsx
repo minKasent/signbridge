@@ -25,6 +25,7 @@ import {
   buildSearchIndex,
   categoryLabel,
   clipSrc,
+  describeError,
   normalizeGloss,
   searchSigns,
   useSigns,
@@ -241,7 +242,7 @@ export default function AdminStudio() {
       });
     } catch (e) {
       toast.error("Không thêm được ký hiệu", {
-        description: e instanceof Error ? e.message : String(e),
+        description: describeError(e),
       });
     } finally {
       setBusy(false);
@@ -268,7 +269,7 @@ export default function AdminStudio() {
       toast.success(`Đã lưu “${updated.meaningVi}”`);
     } catch (e) {
       toast.error("Không lưu được thay đổi", {
-        description: e instanceof Error ? e.message : String(e),
+        description: describeError(e),
       });
     } finally {
       setBusy(false);
@@ -293,7 +294,7 @@ export default function AdminStudio() {
       toast.success(`Đã xóa “${sign.meaningVi}”`);
     } catch (e) {
       toast.error("Không xóa được ký hiệu", {
-        description: e instanceof Error ? e.message : String(e),
+        description: describeError(e),
       });
     } finally {
       setBusy(false);
@@ -409,7 +410,11 @@ export default function AdminStudio() {
       </div>
 
       {loading ? (
-        <div className="space-y-2" aria-live="polite" aria-busy>
+        <div className="space-y-2" aria-busy>
+          {/* Khung xương không có chữ nào nên trình đọc màn hình im lặng — phải nói ra */}
+          <p aria-live="polite" className="sr-only">
+            Đang tải danh sách ký hiệu…
+          </p>
           <Skeleton className="h-10 w-full" />
           {Array.from({ length: 8 }, (_, i) => (
             <Skeleton key={i} className="h-12 w-full" />
@@ -602,8 +607,10 @@ export default function AdminStudio() {
             <AlertDialogTitle>Xóa ký hiệu “{deleting?.meaningVi}”?</AlertDialogTitle>
             <AlertDialogDescription>
               Ký hiệu <span className="font-mono">{deleting?.gloss}</span> sẽ bị xóa khỏi từ điển
-              {deleting?.clipUrl !== null ? " CÙNG VỚI clip mẫu đã quay" : ""}. Thao tác này không
-              hoàn lại được.
+              {/* deleting?.clipUrl !== null cho ra true cả khi deleting === null, nên
+                  hộp thoại nhá cảnh báo sai trong lúc đóng — phải kiểm chính deleting */}
+              {deleting !== null && deleting.clipUrl !== null ? " CÙNG VỚI clip mẫu đã quay" : ""}.
+              Thao tác này không hoàn lại được.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -7,7 +7,13 @@ import { CheckCircle2, Loader2, LogOut, Plus, RefreshCw, SearchX, Settings2 } fr
 import { toast } from "sonner";
 import { API_BASE } from "@/lib/landmarks";
 import { authHeader, useAuth } from "@/lib/auth";
-import { categoryLabel, normalizeGloss, useSigns, type Sign } from "@/app/dictionary/sign";
+import {
+  categoryLabel,
+  describeError,
+  normalizeGloss,
+  useSigns,
+  type Sign,
+} from "@/app/dictionary/sign";
 import ClipRecorder, { type RecorderPhase } from "./ClipRecorder";
 import SignPicker from "./SignPicker";
 import { Badge } from "@/components/ui/badge";
@@ -104,9 +110,7 @@ function RecordToolInner() {
       setNewWord("");
       toast.success(`Đã thêm “${created.meaningVi}”`, { description: "Giờ quay clip cho từ này." });
     } catch (e) {
-      toast.error("Không thêm được từ mới", {
-        description: e instanceof Error ? e.message : String(e),
-      });
+      toast.error("Không thêm được từ mới", { description: describeError(e) });
     } finally {
       setCreating(false);
     }
@@ -125,7 +129,10 @@ function RecordToolInner() {
     );
   }
 
-  const reviewing = phase === "preview" || phase === "uploading";
+  // Bắt buộc có `selected`: sau khi bấm "Đổi từ khác", ClipRecorder đã unmount nên
+  // `phase` giữ nguyên giá trị cũ ("preview") — không chặn thì bước 1 và bước 3
+  // cùng lúc là bước hiện tại, tức hai phần tử aria-current="step".
+  const reviewing = selected !== null && (phase === "preview" || phase === "uploading");
   const justSaved = selected !== null && savedId === selected.id;
 
   const steps: { label: string; hint: string; state: StepState }[] = [
