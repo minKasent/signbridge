@@ -14,4 +14,9 @@ class SignCatalogImpl implements SignCatalog {
 	public boolean existsByGloss(String gloss) {
 		return signs.findByGloss(gloss).isPresent();
 	}
+
+	@Override
+	public java.util.Optional<String> meaningOf(String gloss) {
+		return signs.findByGloss(gloss).map(Sign::getMeaningVi);
+	}
 }

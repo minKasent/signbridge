@@ -25,6 +25,9 @@ Người khiếm thính ra ký hiệu trước webcam → hệ thống nhận di
 
 ## 2. Kiến trúc tổng thể
 
+> Ghi chú triển khai: tầng ghép câu (gloss → câu tiếng Việt bằng LLM + TTS) đã làm sớm ở
+> tuần 0 — xem mục 6. Phát hiện "nghỉ tay" dựa vào nhãn `NO_SIGN` model trả về.
+
 ```mermaid
 flowchart LR
     subgraph Browser["🖥️ Next.js (TypeScript)"]
@@ -128,7 +131,13 @@ Video → MediaPipe → chuỗi keypoint (T × N điểm × 3)
 > ✅ Tuần 2 xong sớm (identity JWT + phân quyền, dictionary + upload clip, trang /dictionary);
 > ✅ Tuần 3 công cụ thu dataset xong sớm (module dataset + trang /collect + script trích landmark).
 >
-> **Chất lượng:** 6/6 test Java (Modulith verify + Testcontainers), 17/17 test E2E, web build sạch.
+> ✅ **Tuần 8 (tầng ngôn ngữ) xong sớm**: buffer gloss theo phiên → phát hiện nghỉ tay (nhãn `NO_SIGN`)
+> → Gemini Flash ghép thành câu tiếng Việt tự nhiên (prompt few-shot, có cache + ghép dự phòng
+> từ từ điển khi mất mạng) → hiện chữ + đọc thành tiếng bằng SpeechSynthesis vi-VN.
+> Đã chạy thật với API key: `BAC_SI / XIN_CHAO / TOI / DAU / KHAM_BENH` → *"Xin chào bác sĩ, tôi bị đau nên cần khám bệnh."*
+>
+> **Chất lượng:** 9/9 test Java (Modulith verify + Testcontainers + unit ghép câu), 17/17 test E2E
+> hạ tầng, 6/6 test E2E ghép câu, ESLint sạch, web build sạch.
 > **18 lỗi thật đã bắt & sửa** (3 qua test E2E + 15 qua review đa tác nhân có xác minh đối kháng):
 > WS buffer 8KB · JDK HttpClient h2c vs uvicorn · Security chặn /error · React StrictMode làm chết
 > vòng lặp nhận diện · chiếm quyền ADMIN qua đăng ký đầu tiên · WS không giới hạn buffer/số chiều ·
@@ -147,7 +156,7 @@ Video → MediaPipe → chuỗi keypoint (T × N điểm × 3)
 | 5 | Mở rộng 100 gloss; thí nghiệm so sánh model #1 vs #2; chọn model chính | Attention, data augmentation |
 | 6 | Pipeline real-time v0: browser → WS → Spring `translation` → FastAPI → hiện gloss trên UI | Spring Modulith events, WebSocket |
 | 7 | Cửa sổ trượt + debounce + ngưỡng; đo độ trễ; tinh chỉnh UX hiển thị | ONNX export/runtime |
-| 8 | **Milestone giữa kỳ: demo live nhận diện 20 ký hiệu ổn định.** LLM ghép gloss → câu + TTS đọc | Prompt engineering |
+| 8 | **Milestone giữa kỳ: demo live nhận diện 20 ký hiệu ổn định.** ~~LLM ghép gloss → câu + TTS~~ (đã xong sớm) → thay vào đó: tinh chỉnh prompt theo gloss thật + nâng TTS lên giọng neural | Prompt engineering |
 | 9 | Thu dữ liệu bổ sung từ 5–10 bạn; fine-tune lại; đánh giá người-ngoài-dataset | — |
 | 10 | Chiều ngược: STT → mapping từ khóa → phát chuỗi clip ký hiệu từ `dictionary` | PhoWhisper/Web Speech |
 | 11 | Module `analytics` + dashboard số liệu; hoàn thiện admin | — |

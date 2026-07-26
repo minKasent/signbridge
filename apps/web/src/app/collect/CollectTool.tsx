@@ -27,7 +27,11 @@ export default function CollectTool() {
 
   const [signs, setSigns] = useState<Sign[]>([]);
   const [selectedGloss, setSelectedGloss] = useState("");
-  const [signerName, setSignerName] = useState("");
+  // Đọc localStorage ngay ở khởi tạo state (lazy initializer) thay vì setState
+  // trong effect — tránh render thừa; hàm chỉ chạy phía client.
+  const [signerName, setSignerName] = useState(() =>
+    typeof window === "undefined" ? "" : (localStorage.getItem("signbridge.signer") ?? "")
+  );
   const [phase, setPhase] = useState<Phase>("idle");
   const [countdown, setCountdown] = useState(0);
   const [stats, setStats] = useState<Record<string, number>>({});
@@ -48,16 +52,25 @@ export default function CollectTool() {
     }
   }, []);
 
+  // Nạp từ điển + tiến độ khi mở trang. Mọi setState đều nằm sau await nên
+  // không gây render dây chuyền; cờ cancelled tránh set state sau khi unmount.
   useEffect(() => {
-    setSignerName(localStorage.getItem("signbridge.signer") ?? "");
-    fetch(`${API_BASE}/api/signs`)
-      .then((r) => r.json())
-      .then((list: Sign[]) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/signs`);
+        const list: Sign[] = await res.json();
+        if (cancelled) return;
         setSigns(list);
         if (list.length > 0) setSelectedGloss(list[0].gloss);
-      })
-      .catch(() => setMessage("Không gọi được backend :8080 — hãy chạy Spring core trước."));
-    refreshStats();
+      } catch {
+        if (!cancelled) setMessage("Không gọi được backend :8080 — hãy chạy Spring core trước.");
+      }
+      if (!cancelled) await refreshStats();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [refreshStats]);
 
   async function record() {

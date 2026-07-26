@@ -8,4 +8,7 @@ package vn.signbridge.dictionary;
 public interface SignCatalog {
 
 	boolean existsByGloss(String gloss);
+
+	/** Nghĩa tiếng Việt của gloss, dùng khi LLM không khả dụng (ghép câu dự phòng). */
+	java.util.Optional<String> meaningOf(String gloss);
 }

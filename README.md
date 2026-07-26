@@ -16,6 +16,18 @@ apps/ml    — FastAPI: 1 service mỏng suy luận gloss từ chuỗi landmark 
 training/  — tiền xử lý + notebook huấn luyện (Colab/Kaggle, log lên W&B)
 ```
 
+Luồng phiên dịch đầy đủ:
+
+```
+webcam → MediaPipe (browser) → WebSocket → cửa sổ trượt 32 frame
+      → ML service (gloss + độ tin cậy) → buffer gloss theo phiên
+      → nghỉ tay 2s (nhãn NO_SIGN) → LLM ghép câu tiếng Việt
+      → hiện chữ + đọc thành tiếng (SpeechSynthesis vi-VN)
+```
+
+Không có `GEMINI_API_KEY` thì hệ thống tự ghép câu từ nghĩa trong từ điển —
+demo không bao giờ chết vì mạng.
+
 ## Chạy dev (3 terminal)
 
 Yêu cầu: Docker Desktop đang mở, JDK 21, Node 20+, Python 3.11+.
@@ -40,7 +52,21 @@ npm run dev
 Mở http://localhost:3000/translate → cho phép camera → đưa tay vào khung hình:
 khung xương tay hiện màu xanh lá, panel bên phải hiển thị JSON tọa độ —
 đó chính là toàn bộ dữ liệu mà model ML "nhìn thấy".
-Nhấn **"Kết nối backend"** để stream landmark tới Spring → FastAPI và nhận gloss (stub) trả về.
+
+Nhấn **"Kết nối backend"** → landmark chảy sang Spring → ML service → gloss hiện lên.
+**Hạ tay xuống ~2 giây** (hoặc bấm "Chốt câu") → hệ thống ghép chuỗi gloss thành câu
+tiếng Việt tự nhiên bằng LLM và đọc thành tiếng.
+
+> Chưa có model thật (tuần 4 mới train) nên ML service đang trả gloss giả — nhưng
+> toàn bộ đường đi từ webcam tới câu nói đã thông.
+
+### Các trang khác
+
+| Trang | Công dụng |
+|---|---|
+| `/translate` | Phiên dịch: ký hiệu → gloss → câu tiếng Việt + đọc thành tiếng |
+| `/dictionary` | Từ điển ký hiệu VSL kèm clip mẫu |
+| `/collect` | Thu mẫu dataset: đếm ngược → quay 2 giây → lưu chuỗi keypoint |
 
 ## Tài khoản quản trị
 

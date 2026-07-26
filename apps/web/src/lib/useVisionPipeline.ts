@@ -35,8 +35,11 @@ export function useVisionPipeline({ videoRef, canvasRef, onFrame, drawLandmarkDo
   const [fps, setFps] = useState(0);
 
   // onFrame thay đổi mỗi lần render — giữ trong ref để effect không phải chạy lại
+  // (gán trong effect, không gán lúc render: React 19 cấm đụng ref khi render)
   const onFrameRef = useRef(onFrame);
-  onFrameRef.current = onFrame;
+  useEffect(() => {
+    onFrameRef.current = onFrame;
+  }, [onFrame]);
 
   useEffect(() => {
     let disposed = false;

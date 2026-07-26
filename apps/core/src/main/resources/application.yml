@@ -2,6 +2,11 @@ spring:
   application:
     name: signbridge-core
 
+  config:
+    # Nạp key từ .env ở gốc repo (định dạng KEY=VALUE trùng chuẩn .properties).
+    # optional: → thiếu file vẫn chạy được (CI, máy khác).
+    import: optional:file:../../.env[.properties]
+
   # Tự động bật hạ tầng (Postgres + MinIO) từ docker-compose gốc khi chạy dev
   docker:
     compose:
@@ -36,6 +41,13 @@ management:
 signbridge:
   ml:
     base-url: http://localhost:8000
+  llm:
+    # Ghép chuỗi gloss thành câu tiếng Việt tự nhiên. Không có key → tự động
+    # dùng cách ghép dự phòng từ nghĩa trong từ điển, hệ thống vẫn chạy.
+    base-url: https://generativelanguage.googleapis.com
+    model: gemini-flash-latest
+    api-key: ${GEMINI_API_KEY:}
+    timeout-seconds: 8
   security:
     # DEV ONLY — prod đặt qua biến môi trường SIGNBRIDGE_SECURITY_JWT_SECRET (>= 32 byte)
     jwt-secret: "signbridge-dev-secret-doi-khi-len-prod-0123456789abcdef"
