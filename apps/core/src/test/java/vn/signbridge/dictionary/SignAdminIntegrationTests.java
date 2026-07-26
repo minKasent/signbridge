@@ -101,6 +101,33 @@ class SignAdminIntegrationTests {
 		return (String) registered.getBody().get("token");
 	}
 
+	/**
+	 * Upload clip giả lập qua multipart. Không dùng MultipartBodyBuilder: class đó
+	 * tham chiếu org.reactivestreams.Publisher (WebFlux) không có trong classpath
+	 * MVC thuần → NoClassDefFoundError khi nạp class.
+	 */
+	private ResponseEntity<Map<String, Object>> uploadClip(long id, String token, String contentType,
+			String filename) {
+		HttpHeaders partHeaders = new HttpHeaders();
+		partHeaders.setContentType(MediaType.parseMediaType(contentType));
+		ByteArrayResource fakeClip = new ByteArrayResource("clip-gia-lap".getBytes()) {
+			@Override
+			public String getFilename() {
+				return filename;
+			}
+		};
+		MultiValueMap<String, Object> multipart = new LinkedMultiValueMap<>();
+		multipart.add("file", new HttpEntity<>(fakeClip, partHeaders));
+
+		ResponseEntity<Map<String, Object>> response = client.post().uri("/api/signs/" + id + "/clip")
+				.contentType(MediaType.MULTIPART_FORM_DATA)
+				.header("Authorization", "Bearer " + token)
+				.body(multipart)
+				.retrieve().toEntity(JSON_MAP);
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+		return response;
+	}
+
 	private long createSign(String gloss) {
 		ResponseEntity<Map<String, Object>> created = client.post().uri("/api/signs")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -165,30 +192,39 @@ class SignAdminIntegrationTests {
 	}
 
 	@Test
+	void taoTrungGlossTra409ChuKhong500() {
+		createSign("IT_ADMIN_TRUNG");
+		ResponseEntity<Map<String, Object>> duplicated = client.post().uri("/api/signs")
+				.contentType(MediaType.APPLICATION_JSON)
+				.header("Authorization", "Bearer " + adminToken())
+				.body(Map.of("gloss", "IT_ADMIN_TRUNG", "meaningVi", "trùng", "category", "DAILY"))
+				.retrieve().toEntity(JSON_MAP);
+		assertThat(duplicated.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+	}
+
+	@Test
+	void quayClipThayTheKhacDuoiThiFileCuBiDon() {
+		long id = createSign("IT_ADMIN_THAY_DUOI");
+		String token = adminToken();
+
+		// Clip đầu là mp4 (mô phỏng import QIPEDC), quay thay bằng webm
+		uploadClip(id, token, "video/mp4", "clip.mp4");
+		assertThat(tempClipsDir.resolve("sign-" + id + ".mp4")).exists();
+
+		ResponseEntity<Map<String, Object>> replaced = uploadClip(id, token, "video/webm", "clip.webm");
+		assertThat(replaced.getBody().get("clipUrl")).isEqualTo("/clips/sign-" + id + ".webm");
+		assertThat(tempClipsDir.resolve("sign-" + id + ".webm")).exists();
+		// File đuôi cũ phải biến mất — không thì clip bị thay vẫn công khai tại /clips
+		assertThat(tempClipsDir.resolve("sign-" + id + ".mp4")).doesNotExist();
+	}
+
+	@Test
 	void adminXoaDuocKeCaKyHieuCoClip_vaFileClipBiXoaTheo() {
 		long id = createSign("IT_ADMIN_XOA");
 		String token = adminToken();
 
-		// Gắn clip webm cho ký hiệu trước khi xóa. Không dùng MultipartBodyBuilder:
-		// class đó tham chiếu org.reactivestreams.Publisher (WebFlux) không có
-		// trong classpath MVC thuần → NoClassDefFoundError khi nạp class.
-		HttpHeaders partHeaders = new HttpHeaders();
-		partHeaders.setContentType(MediaType.parseMediaType("video/webm"));
-		ByteArrayResource fakeClip = new ByteArrayResource("webm-gia-lap".getBytes()) {
-			@Override
-			public String getFilename() {
-				return "clip.webm";
-			}
-		};
-		MultiValueMap<String, Object> multipart = new LinkedMultiValueMap<>();
-		multipart.add("file", new HttpEntity<>(fakeClip, partHeaders));
-
-		ResponseEntity<Map<String, Object>> withClip = client.post().uri("/api/signs/" + id + "/clip")
-				.contentType(MediaType.MULTIPART_FORM_DATA)
-				.header("Authorization", "Bearer " + token)
-				.body(multipart)
-				.retrieve().toEntity(JSON_MAP);
-		assertThat(withClip.getStatusCode()).isEqualTo(HttpStatus.OK);
+		// Gắn clip webm cho ký hiệu trước khi xóa
+		ResponseEntity<Map<String, Object>> withClip = uploadClip(id, token, "video/webm", "clip.webm");
 		assertThat(withClip.getBody().get("clipUrl")).isEqualTo("/clips/sign-" + id + ".webm");
 		assertThat(tempClipsDir.resolve("sign-" + id + ".webm")).exists();
 

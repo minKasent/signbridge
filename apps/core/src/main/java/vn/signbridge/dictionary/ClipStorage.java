@@ -59,6 +59,17 @@ class ClipStorage {
 			Files.deleteIfExists(temp);
 			throw e;
 		}
+		// Dọn file đuôi đối nghịch: quay .webm thay clip .mp4 import sẵn mà không
+		// xóa thì file cũ vẫn được serve công khai tại /clips/sign-{id}.mp4 —
+		// "thay clip" phải thay thật. Best-effort: lỗi xóa (file đang được serve
+		// trên Windows) không làm hỏng upload đã thành công.
+		String otherExtension = extension.equals(".webm") ? ".mp4" : ".webm";
+		try {
+			Files.deleteIfExists(clipsDir.resolve("sign-" + signId + otherExtension));
+		}
+		catch (IOException e) {
+			// bỏ qua — file cũ thành mồ côi, lần delete(signId) sau sẽ dọn nốt
+		}
 		return "/clips/" + filename;
 	}
 

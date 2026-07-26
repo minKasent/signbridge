@@ -92,6 +92,16 @@ export default function AdminStudio() {
     setSigns((prev) => (prev ? prev.map((s) => (s.id === updated.id ? updated : s)) : prev));
   }
 
+  /**
+   * Token hết hạn giữa phiên: PHẢI xóa session localStorage rồi mới về /login —
+   * chỉ hiện thông báo thì /login thấy role ADMIN cũ sẽ bounce ngược về /admin,
+   * người dùng không có cách đăng nhập lại.
+   */
+  function handleAuthError() {
+    logout();
+    router.replace("/login");
+  }
+
   async function createSign() {
     const gloss = normalizeGloss(newGloss);
     const meaningVi = newMeaning.trim();
@@ -108,7 +118,10 @@ export default function AdminStudio() {
         body: JSON.stringify({ gloss, meaningVi, category }),
       });
       if (res.status === 409) throw new Error(`Gloss "${gloss}" đã tồn tại`);
-      if (res.status === 401 || res.status === 403) throw new Error("Phiên đăng nhập hết hạn — đăng nhập lại");
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const created: Sign = await res.json();
       setSigns((prev) => (prev ? [created, ...prev] : [created]));
@@ -137,7 +150,10 @@ export default function AdminStudio() {
         headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ meaningVi, category }),
       });
-      if (res.status === 401 || res.status === 403) throw new Error("Phiên đăng nhập hết hạn — đăng nhập lại");
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+        return;
+      }
       if (res.status === 404) throw new Error("Ký hiệu không còn tồn tại");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const updated: Sign = await res.json();
@@ -159,7 +175,10 @@ export default function AdminStudio() {
         method: "DELETE",
         headers: authHeader(),
       });
-      if (res.status === 401 || res.status === 403) throw new Error("Phiên đăng nhập hết hạn — đăng nhập lại");
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+        return;
+      }
       if (res.status === 404) throw new Error("Ký hiệu không còn tồn tại");
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
       setSigns((prev) => (prev ? prev.filter((s) => s.id !== sign.id) : prev));
@@ -395,6 +414,7 @@ export default function AdminStudio() {
             setRecordSign(null);
             setMessage(`✅ Đã lưu clip cho "${updated.meaningVi}".`);
           }}
+          onAuthError={handleAuthError}
         />
       )}
 

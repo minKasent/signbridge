@@ -3,6 +3,7 @@ package vn.signbridge.dictionary;
 import java.io.IOException;
 import java.util.List;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,10 +21,12 @@ import org.springframework.web.server.ResponseStatusException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/signs")
 @RequiredArgsConstructor
+@Slf4j
 class SignController {
 
 	private final SignRepository signs;
@@ -44,11 +47,17 @@ class SignController {
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	Sign create(@Valid @RequestBody CreateSignRequest request) {
-		return signs.save(Sign.builder()
-				.gloss(request.gloss())
-				.meaningVi(request.meaningVi())
-				.category(request.category())
-				.build());
+		try {
+			return signs.save(Sign.builder()
+					.gloss(request.gloss())
+					.meaningVi(request.meaningVi())
+					.category(request.category())
+					.build());
+		}
+		catch (DataIntegrityViolationException e) {
+			// Cột gloss unique — trùng phải là 409 có thông điệp rõ, không phải 500
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Gloss đã tồn tại trong từ điển");
+		}
 	}
 
 	/**
@@ -67,11 +76,21 @@ class SignController {
 	/** Xóa ký hiệu (ADMIN) — xóa luôn file clip để không để rác trong storage. */
 	@DeleteMapping("/{id}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	void delete(@PathVariable Long id) throws IOException {
+	void delete(@PathVariable Long id) {
 		Sign sign = signs.findById(id).orElseThrow(
 				() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy ký hiệu"));
-		clipStorage.delete(sign.getId());
 		signs.delete(sign);
+		// Xóa DB trước (nguồn sự thật) rồi mới best-effort xóa file: file mồ côi
+		// vô hại, còn bản ghi sót với clipUrl chết là lỗi người dùng nhìn thấy.
+		// Windows còn có thể ném IOException khi clip đang được serve (file lock)
+		// — không được vì thế mà làm hỏng thao tác xóa.
+		try {
+			clipStorage.delete(sign.getId());
+		}
+		catch (IOException e) {
+			log.warn("Không xóa được file clip của sign {} (sẽ thành file mồ côi): {}",
+					sign.getId(), e.getMessage());
+		}
 	}
 
 	/** Upload clip mẫu cho một ký hiệu (ADMIN — dùng khi xây từ điển tuần 10). */

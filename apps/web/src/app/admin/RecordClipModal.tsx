@@ -19,14 +19,19 @@ type Props = {
   sign: Sign;
   onClose: () => void;
   onUploaded: (updated: Sign) => void;
+  /** Phiên hết hạn/mất quyền giữa chừng — cha lo logout + chuyển /login. */
+  onAuthError: () => void;
 };
 
-export default function RecordClipModal({ sign, onClose, onUploaded }: Props) {
+export default function RecordClipModal({ sign, onClose, onUploaded, onAuthError }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const previewUrlRef = useRef<string | null>(null);
+  // Đánh dấu modal đã unmount: record()/onstop chạy tiếp sau await/callback
+  // bất đồng bộ phải dừng lại, không đụng ref/tạo object URL nữa
+  const disposedRef = useRef(false);
 
   const [phase, setPhase] = useState<Phase>("starting");
   const [countdown, setCountdown] = useState(0);
@@ -36,6 +41,7 @@ export default function RecordClipModal({ sign, onClose, onUploaded }: Props) {
   // Bật camera khi mở modal; effect hủy được (chuẩn StrictMode)
   useEffect(() => {
     let disposed = false;
+    disposedRef.current = false;
     (async () => {
       try {
         const media = await navigator.mediaDevices.getUserMedia({
@@ -60,6 +66,7 @@ export default function RecordClipModal({ sign, onClose, onUploaded }: Props) {
     })();
     return () => {
       disposed = true;
+      disposedRef.current = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       if (previewUrlRef.current) {
@@ -87,14 +94,22 @@ export default function RecordClipModal({ sign, onClose, onUploaded }: Props) {
       await new Promise((r) => setTimeout(r, 700));
     }
 
+    // Người dùng có thể đã đóng modal (✕/Esc) trong lúc đếm ngược — cleanup đã
+    // stop tracks và null stream, đi tiếp sẽ new MediaRecorder(null) nổ TypeError
+    const stream = streamRef.current;
+    if (disposedRef.current || !stream) return;
+
     setPhase("recording");
     chunksRef.current = [];
     const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
       ? "video/webm;codecs=vp9"
       : "video/webm";
-    const recorder = new MediaRecorder(streamRef.current, { mimeType });
+    const recorder = new MediaRecorder(stream, { mimeType });
     recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
     recorder.onstop = () => {
+      // Đóng modal giữa lúc quay: tracks bị stop làm onstop vẫn bắn SAU cleanup —
+      // không được tạo object URL nữa (không còn ai revoke → rò rỉ blob)
+      if (disposedRef.current) return;
       const blob = new Blob(chunksRef.current, { type: "video/webm" });
       setClip(blob);
       setPhase("preview");
@@ -122,7 +137,8 @@ export default function RecordClipModal({ sign, onClose, onUploaded }: Props) {
         body: form,
       });
       if (res.status === 401 || res.status === 403) {
-        throw new Error("Phiên đăng nhập hết hạn hoặc không đủ quyền — đăng nhập lại.");
+        onAuthError();
+        return;
       }
       if (!res.ok) throw new Error(`Upload lỗi (HTTP ${res.status})`);
       const updated: Sign = await res.json();

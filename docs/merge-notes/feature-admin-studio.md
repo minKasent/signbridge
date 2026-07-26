@@ -57,3 +57,9 @@ sẵn), không sửa `application.yml`, không sửa `pom.xml`/`package.json`.
   sẽ đứng lại kèm thông báo — tránh vòng lặp redirect với guard của `/admin`.
 - Nút ▶ Xem clip trong `/admin` gắn `?v=<timestamp>` vào URL clip để né cache
   browser sau khi quay clip thay thế (URL clip không đổi theo nội dung).
+- Sau vòng review: `SignController.create` giờ bắt trùng gloss trả **409**
+  (trước đây 500 vì unique constraint nổ thẳng) — nhánh 409 sẵn có trong
+  `/record` (RecordTool.tsx dòng 193) nhờ vậy hoạt động đúng, không cần sửa gì.
+  `DELETE` xóa bản ghi DB trước rồi best-effort xóa file (file bị lock trên
+  Windows không làm hỏng thao tác xóa); `store()` dọn file đuôi đối nghịch khi
+  quay clip thay thế (.webm đè .mp4 import) để clip cũ không còn công khai.
