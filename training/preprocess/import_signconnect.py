@@ -81,17 +81,66 @@ def upload_clip(base: str, sign_id: int, token: str, video: bytes, filename: str
         return json.load(res)
 
 
+def strip_diacritics(text: str) -> str:
+    import unicodedata
+    text = text.replace("đ", "d").replace("Đ", "D")
+    decomposed = unicodedata.normalize("NFD", text)
+    return "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
+
+
+def make_gloss(label: str, taken: set[str]) -> str:
+    import re
+    slug = re.sub(r"[^A-Z0-9]+", "_", strip_diacritics(label).upper()).strip("_")[:60] or "TU"
+    gloss, n = slug, 2
+    while gloss in taken:
+        gloss, n = f"{slug}_{n}", n + 1
+    taken.add(gloss)
+    return gloss
+
+
+def full_vocab() -> list[tuple[str, str, str, str]]:
+    """Toàn bộ kho QIPEDC: mỗi từ một clip (ưu tiên biến thể B > không hậu tố > N > T)."""
+    import csv
+    import io as _io
+    with urllib.request.urlopen(
+            "https://huggingface.co/datasets/Lakeserl/SignConnect/resolve/main/Text/label.csv") as res:
+        rows = list(csv.DictReader(_io.TextIOWrapper(res, encoding="utf-8")))
+    by_label: dict[str, list[str]] = {}
+    for r in rows:
+        by_label.setdefault(r["LABEL"].strip(), []).append(r["VIDEO"].strip())
+
+    def preference(video: str) -> int:
+        stem = video.rsplit(".", 1)[0]
+        return {"B": 0, "N": 2, "T": 3}.get(stem[-1], 1)
+
+    taken: set[str] = set()
+    vocab = []
+    for label, videos in sorted(by_label.items()):
+        video = sorted(videos, key=preference)[0]
+        vocab.append((make_gloss(label, taken), label, "TUDIEN", video))
+    return vocab
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--api", default="http://localhost:8080")
     parser.add_argument("--force", action="store_true", help="Upload lại cả clip đã có")
+    parser.add_argument("--all", action="store_true",
+                        help="Import TOÀN BỘ kho QIPEDC (~3.300 từ, chạy 1-2 giờ) thay vì bộ khởi đầu")
     args = parser.parse_args()
 
     token = api(args.api, "/api/auth/login", ADMIN)["token"]
     existing = {s["gloss"]: s for s in api(args.api, "/api/signs")}
 
+    vocab = VOCAB
+    if args.all:
+        existing_meanings = {s["meaningVi"].strip().lower() for s in existing.values()}
+        vocab = [(g, m, c, v) for g, m, c, v in full_vocab()
+                 if m.strip().lower() not in existing_meanings]
+        print(f"Chế độ --all: {len(vocab)} từ mới cần import")
+
     done = skipped = failed = 0
-    for gloss, meaning, category, video_file in VOCAB:
+    for gloss, meaning, category, video_file in vocab:
         sign = existing.get(gloss)
         if sign is None:
             sign = api(args.api, "/api/signs",
@@ -105,9 +154,10 @@ def main() -> None:
         try:
             with urllib.request.urlopen(f"{HF_BASE}/{video_file}") as res:
                 video = res.read()
-            updated = upload_clip(args.api, sign["id"], token, video, video_file)
-            print(f"✓ {gloss}: {video_file} ({len(video)//1024} KB) → {updated['clipUrl']}")
+            upload_clip(args.api, sign["id"], token, video, video_file)
             done += 1
+            if not args.all or done % 100 == 0:
+                print(f"✓ [{done}] {gloss}: {video_file} ({len(video)//1024} KB)")
         except Exception as e:  # noqa: BLE001 — báo lỗi từng clip, không dừng cả đợt
             print(f"✗ {gloss}: {video_file} LỖI — {e}")
             failed += 1
