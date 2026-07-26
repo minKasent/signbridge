@@ -102,10 +102,21 @@ Biến 8 trang rời rạc thành **một sản phẩm thống nhất, chiếu m
 `Magic UI` (chỉ vài hiệu ứng điểm nhấn ở trang demo/landing) · `lucide-react` (icon) ·
 `sonner` (toast) · `recharts` qua component `chart` của shadcn (chỉ cho `/stats`).
 
-**KHÔNG dùng sprint này**: GSAP, React Bits, Aceternity, Cult UI, Eldora UI, Kokonut UI, Swiper,
-AlignUI, Park UI, Ark UI, Base UI… Lý do: chồng chéo với bộ trên, mỗi thư viện kéo theo một hệ
-token/CSS riêng dễ đá nhau, và đồ án cần **nhất quán** hơn là nhiều hiệu ứng. Muốn thêm → ghi
-merge-notes kèm lý do, AGENT C quyết khi merge.
+**ĐƯỢC dùng thêm**: `React Bits` — **chỉ biến thể `-TS-TW`** (`npx shadcn@latest add
+@react-bits/BlurText-TS-TW`), cho hiệu ứng chữ. Đây là registry duy nhất ngoài Magic UI có
+biến thể TypeScript+Tailwind chính chủ và ghim phiên bản phụ thuộc.
+
+**KHÔNG dùng sprint này** (đã kiểm chứng lý do, đừng tranh luận lại):
+- **Aceternity UI** — registry không kèm `css`/`cssVars`, component cài xong *build được*
+  nhưng animation **im lặng không chạy** trên Tailwind v4. Bẫy tốn thời gian nhất.
+- **GSAP** — miễn phí thật, nhưng thêm một runtime animation THỨ HAI (~6.4MB) song song với
+  motion; motion đã đủ cho mọi thứ demo cần.
+- Cult UI (hay lỗi 429), Animate UI (registry cũ), Kokonut/Eldora (trùng chức năng), Swiper,
+  AlignUI, Park UI, Ark UI, Base UI.
+
+⚠️ **Cấm nền WebGL** (React Bits Aurora/Threads, Magic UI Globe…) trên `/translate`, `/video`,
+`/collect`, `/record`: chúng giành GPU với MediaPipe làm tụt fps nhận diện — lỗi sẽ chỉ lộ ra
+đúng lúc demo.
 
 ### 3.3 Quy tắc React/Next — **nạp skill `vercel-react-best-practices` trước khi viết component**
 
@@ -141,10 +152,10 @@ Thêm: `page.tsx` luôn là **server component** (chỉ `metadata` + render comp
 
 ---
 
-## 4. PHASE 0 — Nền tảng (AGENT C làm TRƯỚC, push thẳng `main`)
+## 4. PHASE 0 — Nền tảng ✅ **ĐÃ XONG, đã có trên `main`**
 
-⚠️ **A và B chỉ bắt đầu SAU khi Phase 0 lên `main`.** Lý do: `globals.css`, `layout.tsx`,
-`package.json`, `components.json` là file dùng chung.
+A và B bắt đầu được ngay. Nền tảng đã dựng — **đọc [docs/UI-GUIDE.md](docs/UI-GUIDE.md)
+trước khi viết dòng code giao diện đầu tiên**, KHÔNG dựng lại shadcn.
 
 1. `npx shadcn@latest init` (new-york, base zinc, CSS variables) → `components.json`,
    `src/lib/utils.ts` (`cn`), token trong `globals.css`.
