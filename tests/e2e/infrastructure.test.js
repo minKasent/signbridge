@@ -90,6 +90,22 @@ async function main() {
     composed.items.some((s) => s.meaningVi === "đau bụng"), JSON.stringify(composed).slice(0, 100));
   check("compose báo từ thiếu ('bị')", composed.missing.includes("bị"));
 
+  // --- 3c. Upload clip webm (đường trang /record dùng) ---
+  console.log("3c. Upload clip webm");
+  const signForClip = { gloss: `TEST_CLIP_${Date.now() % 100000}`, meaningVi: "test clip", category: "DAILY" };
+  res = await post("/api/signs", signForClip, admin.token);
+  const createdSign = await res.json();
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(2048)], { type: "video/webm" }), "test.webm");
+  res = await fetch(`${BASE}/api/signs/${createdSign.id}/clip`, {
+    method: "POST", headers: { Authorization: `Bearer ${admin.token}` }, body: form,
+  });
+  const withClip = res.ok ? await res.json() : {};
+  check("upload webm với ADMIN → clipUrl được gán", res.ok && /^\/clips\/sign-\d+\.webm$/.test(withClip.clipUrl ?? ""), `(got ${res.status} ${withClip.clipUrl})`);
+
+  res = await fetch(`${BASE}/api/signs/${createdSign.id}/clip`, { method: "POST", body: (() => { const f = new FormData(); f.append("file", new Blob([new Uint8Array(16)], { type: "video/webm" }), "x.webm"); return f; })() });
+  check("upload clip không token → 401", res.status === 401, `(got ${res.status})`);
+
   // --- 4. WebSocket ---
   console.log("4. WebSocket");
   const ok = await wsProbe((ws) => {

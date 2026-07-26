@@ -105,9 +105,12 @@ export default function DictionaryBrowser() {
                 className="w-full rounded-lg bg-zinc-800"
               />
             ) : (
-              <p className="rounded-lg bg-zinc-800/50 p-3 text-center text-xs text-zinc-500">
-                Chưa có clip
-              </p>
+              <a
+                href={`/record?sign=${encodeURIComponent(s.gloss)}`}
+                className="block rounded-lg bg-zinc-800/50 p-3 text-center text-xs text-zinc-400 hover:bg-zinc-800 hover:text-emerald-400"
+              >
+                Chưa có clip — 🎥 quay ngay
+              </a>
             )}
           </div>
         ))}
