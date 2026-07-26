@@ -5,6 +5,7 @@
 # Dữ liệu lớn (clip, model, dataset) — không đưa lên git
 storage/clips/*
 !storage/clips/.gitkeep
+storage/dataset/
 training/data/
 *.onnx
 *.task

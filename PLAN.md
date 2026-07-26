@@ -66,13 +66,17 @@ flowchart LR
 
 | Module | Trách nhiệm | Bảng chính |
 |---|---|---|
-| `identity` | Đăng ký/đăng nhập, JWT, phân quyền (ADMIN, CONTRIBUTOR, USER) | users, roles |
+| `identity` | Đăng ký/đăng nhập, JWT (HS256), phân quyền ADMIN/CONTRIBUTOR/USER; admin tạo từ cấu hình lúc khởi động (đăng ký công khai chỉ ra USER) | users |
 | `dictionary` | Từ điển ký hiệu: gloss, mô tả, video clip mẫu (filesystem), danh mục chủ đề | signs, categories, clips |
 | `translation` | Phiên dịch: quản lý session WebSocket, cửa sổ trượt, gọi ML service, buffer gloss, gọi LLM ghép câu, gọi TTS | sessions, transcripts |
 | `dataset` | Chiến dịch thu mẫu: ai quay, ký hiệu nào, duyệt chất lượng, export ra định dạng train | campaigns, samples |
 | `analytics` | Thống kê sử dụng, lưu lịch sử số liệu model (accuracy theo version) | usage_logs, model_metrics |
 
-Giao tiếp giữa module: sự kiện (VD: `TranslationCompletedEvent` → `analytics` lắng nghe). Không import chéo package nội bộ — Modulith test sẽ fail nếu vi phạm.
+Giao tiếp giữa module:
+- **Sự kiện** cho luồng không nằm trên đường trễ (VD: `GlossRecognized` → `analytics` lắng nghe qua `@ApplicationModuleListener`). Chỉ bọc giao dịch quanh phần publish — KHÔNG bọc cả lời gọi ML, nếu không connection DB bị giữ suốt vòng gọi mạng.
+- **Interface công khai** khi cần trả lời đồng bộ (VD: `dataset` gọi `dictionary.SignCatalog` để kiểm gloss có thật). Đây là bề mặt duy nhất được phép gọi xuyên module — repository/entity vẫn đóng gói bên trong.
+
+Không import chéo package nội bộ — Modulith test sẽ fail nếu vi phạm.
 
 ## 4. Stack công nghệ
 
@@ -119,6 +123,20 @@ Video → MediaPipe → chuỗi keypoint (T × N điểm × 3)
 ## 6. Lộ trình 16 tuần
 
 > Nhánh **[HỌC]** chạy song song, không chặn nhánh **[LÀM]**.
+>
+> **Tiến độ 26/07/2026 (trước tuần 1):** ✅ Tuần 1 xong (skeleton + demo MediaPipe chạy thật trên webcam);
+> ✅ Tuần 2 xong sớm (identity JWT + phân quyền, dictionary + upload clip, trang /dictionary);
+> ✅ Tuần 3 công cụ thu dataset xong sớm (module dataset + trang /collect + script trích landmark).
+>
+> **Chất lượng:** 6/6 test Java (Modulith verify + Testcontainers), 17/17 test E2E, web build sạch.
+> **18 lỗi thật đã bắt & sửa** (3 qua test E2E + 15 qua review đa tác nhân có xác minh đối kháng):
+> WS buffer 8KB · JDK HttpClient h2c vs uvicorn · Security chặn /error · React StrictMode làm chết
+> vòng lặp nhận diện · chiếm quyền ADMIN qua đăng ký đầu tiên · WS không giới hạn buffer/số chiều ·
+> vòng window/stride sai · @Transactional giữ connection suốt lời gọi ML · MlClient thiếu timeout ·
+> race onclose WebSocket · gloss không kiểm theo từ điển · ghi file không atomic · event_publication
+> phình vô hạn · tên clip theo gloss gây ghi đè · 409 trùng email · rò WebGL context.
+>
+> Còn lại của tuần 2-3: tải Multi-VSL 200 + trích landmark (cần Colab) — và nhánh [HỌC] Python/LSTM.
 
 | Tuần | [LÀM] Sản phẩm | [HỌC] Kiến thức |
 |---|---|---|

@@ -42,6 +42,19 @@ khung xương tay hiện màu xanh lá, panel bên phải hiển thị JSON tọ
 đó chính là toàn bộ dữ liệu mà model ML "nhìn thấy".
 Nhấn **"Kết nối backend"** để stream landmark tới Spring → FastAPI và nhận gloss (stub) trả về.
 
+## Tài khoản quản trị
+
+Tạo tự động lúc khởi động từ `application.yml` (prod: đặt biến môi trường
+`SIGNBRIDGE_SECURITY_ADMIN_EMAIL` / `SIGNBRIDGE_SECURITY_ADMIN_PASSWORD`).
+
+| Môi trường dev | Giá trị |
+|---|---|
+| Email | `admin@signbridge.vn` |
+| Mật khẩu | `signbridge-admin-dev` |
+
+API đăng ký công khai (`POST /api/auth/register`) **luôn chỉ cấp quyền USER** —
+quyền ADMIN chỉ đến từ tài khoản bootstrap này.
+
 ## Kiểm tra kiến trúc module
 
 ```powershell

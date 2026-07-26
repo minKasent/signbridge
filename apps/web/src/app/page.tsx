@@ -18,18 +18,18 @@ export default function Home() {
           >
             🖐️ Demo phiên dịch
           </Link>
-          <span
-            className="cursor-not-allowed rounded-lg bg-zinc-800 px-6 py-3 font-medium text-zinc-500"
-            title="Tuần 2-3"
+          <Link
+            href="/dictionary"
+            className="rounded-lg bg-sky-600 px-6 py-3 font-medium hover:bg-sky-500"
           >
-            📖 Từ điển ký hiệu (sắp có)
-          </span>
-          <span
-            className="cursor-not-allowed rounded-lg bg-zinc-800 px-6 py-3 font-medium text-zinc-500"
-            title="Tuần 3"
+            📖 Từ điển ký hiệu
+          </Link>
+          <Link
+            href="/collect"
+            className="rounded-lg bg-violet-600 px-6 py-3 font-medium hover:bg-violet-500"
           >
-            🎥 Thu thập dữ liệu (sắp có)
-          </span>
+            🎥 Thu thập dữ liệu
+          </Link>
         </div>
       </main>
     </div>

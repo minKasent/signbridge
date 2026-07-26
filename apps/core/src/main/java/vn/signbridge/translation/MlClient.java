@@ -1,9 +1,12 @@
 package vn.signbridge.translation;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -18,10 +21,26 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class MlClient {
 
+	private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
+	private static final Duration READ_TIMEOUT = Duration.ofSeconds(3);
+
 	private final RestClient restClient;
 
 	MlClient(@Value("${signbridge.ml.base-url}") String baseUrl) {
-		this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+		// Ép HTTP/1.1: JDK HttpClient mặc định gửi "Upgrade: h2c" + chunked,
+		// uvicorn/h11 từ chối ("Invalid HTTP request") — tìm ra qua dump TCP thô.
+		HttpClient http11 = HttpClient.newBuilder()
+				.version(HttpClient.Version.HTTP_1_1)
+				.connectTimeout(CONNECT_TIMEOUT)
+				.build();
+		// Không có timeout đọc thì một ML service treo sẽ khóa vĩnh viễn thread
+		// WebSocket đang gọi nó. Suy luận phải gần thời gian thực nên 3s là quá đủ.
+		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(http11);
+		requestFactory.setReadTimeout(READ_TIMEOUT);
+		this.restClient = RestClient.builder()
+				.baseUrl(baseUrl)
+				.requestFactory(requestFactory)
+				.build();
 	}
 
 	Optional<InferResponse> infer(List<double[]> frames) {

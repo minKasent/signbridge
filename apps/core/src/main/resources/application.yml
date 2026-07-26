@@ -18,6 +18,12 @@ spring:
       ddl-auto: update # dev only — sẽ chuyển sang Flyway migration ở giai đoạn sau
     open-in-view: false
 
+  modulith:
+    events:
+      # Xóa bản ghi sự kiện sau khi xử lý xong — mỗi gloss nhận diện được sinh
+      # một dòng event_publication, giữ lại hết sẽ phình vô hạn trên hot path.
+      completion-mode: delete
+
 server:
   port: 8080
 
@@ -30,3 +36,12 @@ management:
 signbridge:
   ml:
     base-url: http://localhost:8000
+  security:
+    # DEV ONLY — prod đặt qua biến môi trường SIGNBRIDGE_SECURITY_JWT_SECRET (>= 32 byte)
+    jwt-secret: "signbridge-dev-secret-doi-khi-len-prod-0123456789abcdef"
+    # Tài khoản quản trị duy nhất, tạo lúc khởi động (prod: đặt qua biến môi trường)
+    admin-email: admin@signbridge.vn
+    admin-password: signbridge-admin-dev
+  storage:
+    clips-dir: ../../storage/clips
+    dataset-dir: ../../storage/dataset
