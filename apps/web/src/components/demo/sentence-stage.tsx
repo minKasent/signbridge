@@ -51,7 +51,9 @@ export function SentenceStage({
       )}
     >
       {/* Hiệu ứng điểm nhấn duy nhất của trang — chỉ chạy khi đã có câu thật */}
-      {sentence ? <ShineBorder borderWidth={2} duration={8} shineColor={["#34d399", "#38bdf8"]} /> : null}
+      {sentence ? (
+        <ShineBorder borderWidth={2} duration={8} shineColor={["var(--primary)", "var(--accent)"]} />
+      ) : null}
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <h2 className="text-sm font-medium tracking-wider text-muted-foreground uppercase">
