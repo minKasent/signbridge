@@ -163,6 +163,14 @@ Video → MediaPipe → chuỗi keypoint (T × N điểm × 3)
 > (3) dự phòng: tự thu qua /collect (converter sẵn sàng). Dây chuyền exp01/exp02 dùng nguyên
 > cho VSL400 khi được cấp quyền.
 >
+> ✅ **Đợt 3 agent song song (26/07)**: 3 branch làm cùng lúc theo `Plan-multi-agent.md`,
+> merge KHÔNG xung đột. Thành quả: `/login` + `/admin` (quản trị từ điển + quay clip trong
+> modal), `/video` (dịch ký hiệu từ FILE VIDEO — phương án demo không cần người ký trực tiếp),
+> `/stats` + module analytics lưu DB, `/speak` biết đánh vần từ lạ bằng bảng chữ cái ngón tay,
+> bộ pretrain VOYA_VSL (`exp03`). Review đối kháng sau tích hợp bắt **16 lỗi thật** — đáng
+> ghi vào báo cáo 2 lỗi tinh vi: `@Transactional` bị bỏ qua trên method package-private, và
+> giao dịch read-only vẫn KHÔNG cho ảnh chụp nhất quán dưới READ COMMITTED (phải REPEATABLE READ).
+>
 > Còn lại của tuần 2-3: chờ quyền dataset + nhánh [HỌC] Python/LSTM.
 
 | Tuần | [LÀM] Sản phẩm | [HỌC] Kiến thức |
