@@ -49,6 +49,7 @@ class GlossStatsListener {
 				.sessionId(event.sessionId())
 				.gloss(event.gloss())
 				.confidence(event.confidence())
+				.latencyMs(event.latencyMs())
 				.at(event.at())
 				.build());
 		log.debug("Thống kê: {} đã được nhận diện {} lần", event.gloss(), counts.get(event.gloss()).sum());

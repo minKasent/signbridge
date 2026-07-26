@@ -34,4 +34,15 @@ interface GlossUsageRepository extends JpaRepository<GlossUsage, Long> {
 			+ "count(*) as total from gloss_usages u where u.at >= :sinceTs "
 			+ "group by day order by day", nativeQuery = true)
 	List<Object[]> countByDaySince(@Param("sinceTs") Instant sinceTs);
+
+	/**
+	 * Phân vị độ trễ tính NGAY TRONG SQL (percentile_cont của Postgres) — kéo hết
+	 * cột latency_ms về JVM để tự sắp xếp thì vừa tốn bộ nhớ vừa sai khi bảng lớn.
+	 * Luôn trả đúng một dòng: [0] p50, [1] p95 (null khi chưa có mẫu), [2] số mẫu.
+	 */
+	@Query(value = "select percentile_cont(0.5) within group (order by u.latency_ms) as p50, "
+			+ "percentile_cont(0.95) within group (order by u.latency_ms) as p95, "
+			+ "count(u.latency_ms) as samples from gloss_usages u "
+			+ "where u.at >= :sinceTs and u.latency_ms is not null", nativeQuery = true)
+	List<Object[]> latencyPercentilesSince(@Param("sinceTs") Instant sinceTs);
 }
